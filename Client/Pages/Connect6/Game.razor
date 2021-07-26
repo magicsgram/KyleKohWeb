@@ -115,26 +115,11 @@
     hubConnection = new HubConnectionBuilder()
       .WithUrl(NavigationManager.ToAbsoluteUri("/connect6hub"))
       .WithAutomaticReconnect(new TimeSpan[] {
-        TimeSpan.FromSeconds(1),
-        TimeSpan.FromSeconds(1),
-        TimeSpan.FromSeconds(2),
-        TimeSpan.FromSeconds(2),
-        TimeSpan.FromSeconds(2),
         TimeSpan.FromSeconds(3),
-        TimeSpan.FromSeconds(3),
-        TimeSpan.FromSeconds(3),
-        TimeSpan.FromSeconds(4),
-        TimeSpan.FromSeconds(4),
-        TimeSpan.FromSeconds(4),
-        TimeSpan.FromSeconds(4),
-        TimeSpan.FromSeconds(4),
-        TimeSpan.FromSeconds(4),
-        TimeSpan.FromSeconds(4),
-        TimeSpan.FromSeconds(4),
-        TimeSpan.FromSeconds(4)
+        TimeSpan.FromSeconds(3)
       }).Build();
 
-    hubConnection.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    hubConnection.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
     hubConnection.On<Dictionary<String, String>>("CurrentBoard", async (currentState) =>
     {
@@ -191,6 +176,8 @@
       StateHasChanged();
     });
 
+    hubConnection.Closed += async (e) => await hubConnection.StartAsync();
+
     await hubConnection.StartAsync();
     await hubConnection.SendAsync("InitializeBoardAndConnection", GameId);
 
@@ -202,6 +189,7 @@
     currentVisualTheme = e.Value.ToString();
     StateHasChanged();
   }
+
   private async Task BrowserHasResized()
   {
     Single newWidth = await jsRuntime.InvokeAsync<Int32>("browserResize.getInnerWidth");
