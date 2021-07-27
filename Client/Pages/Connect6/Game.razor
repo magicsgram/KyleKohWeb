@@ -114,10 +114,7 @@
 
       hubConnection = new HubConnectionBuilder()
         .WithUrl(NavigationManager.ToAbsoluteUri("/connect6hub"))
-        .WithAutomaticReconnect(new TimeSpan[] {
-        TimeSpan.FromSeconds(3),
-        TimeSpan.FromSeconds(3)
-        }).Build();
+        .Build();
 
       hubConnection.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
@@ -178,9 +175,9 @@
 
       hubConnection.Closed += async (e) =>
       {
-          Console.WriteLine("Reconnecting");
           await hubConnection.StartAsync();
           await hubConnection.SendAsync("InitializeBoardAndConnection", GameId);
+          StateHasChanged();
       };
 
       await hubConnection.StartAsync();
