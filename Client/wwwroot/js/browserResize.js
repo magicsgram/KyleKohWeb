@@ -9,6 +9,6 @@ window.browserResize = {
     window.addEventListener("resize", browserResize.resized);
   },
   resized: function () {
-    DotNet.invokeMethodAsync("Connect6.Client", 'OnBrowserResize').then(data => data);
+    DotNet.invokeMethodAsync("KyleKoh.Client", 'OnBrowserResize').then(data => data);
   }
 }

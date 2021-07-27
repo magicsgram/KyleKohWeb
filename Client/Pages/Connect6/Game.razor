@@ -35,7 +35,7 @@
         <br/>
       }
       <div style="zoom: @zoomFactor">
-        <table order="0" cellspacing="0" cellpadding="0" style="border:0px; border-collapse:collapse; padding:@(cellSize * 2.5f)px;  font-size:0px; display: inline; table-layout:fixed;">
+        <table order="0" cellspacing="0" cellpadding="0" style="border:0px; border-collapse:collapse; padding:@(cellSize * 2.5f); font-size:1px; display: inline;">
           <tbody>
             @for (Int32 j = 0; j < boardLineStrings.Count;++j)
             {
@@ -108,179 +108,184 @@
 
   protected override async Task OnInitializedAsync()
   {
-    SetLanguages();
-    SetVisualThemes();
-    SetStoneSound();
+      SetLanguages();
+      SetVisualThemes();
+      SetStoneSound();
 
-    hubConnection = new HubConnectionBuilder()
-      .WithUrl(NavigationManager.ToAbsoluteUri("/connect6hub"))
-      .WithAutomaticReconnect(new TimeSpan[] {
+      hubConnection = new HubConnectionBuilder()
+        .WithUrl(NavigationManager.ToAbsoluteUri("/connect6hub"))
+        .WithAutomaticReconnect(new TimeSpan[] {
         TimeSpan.FromSeconds(3),
         TimeSpan.FromSeconds(3)
-      }).Build();
+        }).Build();
 
-    hubConnection.KeepAliveInterval = TimeSpan.FromSeconds(30);
+      hubConnection.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
-    hubConnection.On<Dictionary<String, String>>("CurrentBoard", async (currentState) =>
-    {
-      var tempBoard = currentState["boardString"].Split("\n").ToList();
-      lastPlayX = Int32.Parse(currentState["lastPlayX"]);
-      lastPlayY = Int32.Parse(currentState["lastPlayY"]);
-      lastLastPlayX = Int32.Parse(currentState["lastLastPlayX"]);
-      lastLastPlayY = Int32.Parse(currentState["lastLastPlayY"]);
-      winnerChar = DetermineWinner(tempBoard, lastPlayX, lastPlayY);
-
-      if (winnerExist)
-        turnMessage = String.Format(
-          stringResource[languageCode]["VictoryMessage"],
-          winnerChar == 'b' ? stringResource[languageCode]["Black"] : stringResource[languageCode]["White"]
-        );
-      else
-        turnMessage = String.Format(
-          stringResource[languageCode]["TurnMessage"],
-          currentState["currentTurn"] == "b" ? stringResource[languageCode]["Black"] : stringResource[languageCode]["White"],
-          currentState["currentTurnRemaining"]
-        );
-
-      Boolean firstTimeRunning = (boardLineStrings.Count == 0);
-      boardLineStrings = tempBoard;
-
-      if (firstTimeRunning)
-        await BrowserHasResized();
-      StateHasChanged();
-
-      if (shouldPlaySound && !firstTimeRunning)
+      hubConnection.On<Dictionary<String, String>>("CurrentBoard", async (currentState) =>
       {
-        if (currentState["soundCue"] == "placeStone")
-        {
-          await jsRuntime.InvokeVoidAsync("soundPlayer.playStoneSound");
-        }
-      }
-    });
+          var tempBoard = currentState["boardString"].Split("\n").ToList();
+          lastPlayX = Int32.Parse(currentState["lastPlayX"]);
+          lastPlayY = Int32.Parse(currentState["lastPlayY"]);
+          lastLastPlayX = Int32.Parse(currentState["lastLastPlayX"]);
+          lastLastPlayY = Int32.Parse(currentState["lastLastPlayY"]);
+          winnerChar = DetermineWinner(tempBoard, lastPlayX, lastPlayY);
 
-    hubConnection.On<String>("ServerMessage", (messageString) =>
-    {
-      serverMessage = messageString;
-      StateHasChanged();
-    });
+          if (winnerExist)
+              turnMessage = String.Format(
+                stringResource[languageCode]["VictoryMessage"],
+                winnerChar == 'b' ? stringResource[languageCode]["Black"] : stringResource[languageCode]["White"]
+              );
+          else
+              turnMessage = String.Format(
+                stringResource[languageCode]["TurnMessage"],
+                currentState["currentTurn"] == "b" ? stringResource[languageCode]["Black"] : stringResource[languageCode]["White"],
+                currentState["currentTurnRemaining"]
+              );
 
-    hubConnection.On<String>("NoGameFound", (messageString) =>
-    {
-      serverMessage = stringResource[languageCode]["NoGameFound"];
-      StateHasChanged();
-    });
+          Boolean firstTimeRunning = (boardLineStrings.Count == 0);
+          boardLineStrings = tempBoard;
 
-    hubConnection.On<Int32>("ConnectionSize", (connectionSize) =>
-    {
-      connectedUsersMessage = String.Format(stringResource[languageCode]["CurrentSessionUsersMessage"], connectionSize);
-      StateHasChanged();
-    });
+          if (firstTimeRunning)
+              await BrowserHasResized();
+          StateHasChanged();
 
-    hubConnection.Closed += async (e) => await hubConnection.StartAsync();
+          if (shouldPlaySound && !firstTimeRunning)
+          {
+              if (currentState["soundCue"] == "placeStone")
+              {
+                  await jsRuntime.InvokeVoidAsync("soundPlayer.playStoneSound");
+              }
+          }
+      });
 
-    await hubConnection.StartAsync();
-    await hubConnection.SendAsync("InitializeBoardAndConnection", GameId);
+      hubConnection.On<String>("ServerMessage", (messageString) =>
+      {
+          serverMessage = messageString;
+          StateHasChanged();
+      });
 
-    BrowserResizeService.OnResize += BrowserHasResized;
-    await jsRuntime.InvokeVoidAsync("browserResize.registerResizeCallback");
+      hubConnection.On<String>("NoGameFound", (messageString) =>
+      {
+          serverMessage = stringResource[languageCode]["NoGameFound"];
+          StateHasChanged();
+      });
+
+      hubConnection.On<Int32>("ConnectionSize", (connectionSize) =>
+      {
+          connectedUsersMessage = String.Format(stringResource[languageCode]["CurrentSessionUsersMessage"], connectionSize);
+          StateHasChanged();
+      });
+
+      hubConnection.Closed += async (e) =>
+      {
+          Console.WriteLine("Reconnecting");
+          await hubConnection.StartAsync();
+          await hubConnection.SendAsync("InitializeBoardAndConnection", GameId);
+      };
+
+      await hubConnection.StartAsync();
+      await hubConnection.SendAsync("InitializeBoardAndConnection", GameId);
+
+      BrowserResizeService.OnResize += BrowserHasResized;
+      await jsRuntime.InvokeVoidAsync("browserResize.registerResizeCallback");
   }
 
   private void OnThemeChanged(ChangeEventArgs e) {
-    currentVisualTheme = e.Value.ToString();
-    StateHasChanged();
+      currentVisualTheme = e.Value.ToString();
+      StateHasChanged();
   }
 
   private async Task BrowserHasResized()
   {
-    Single newWidth = await jsRuntime.InvokeAsync<Int32>("browserResize.getInnerWidth");
-    Single totalBoardWidth = cellSize * boardLineStrings[0].Length + cellSize * 2.5f;
-    if (newWidth < totalBoardWidth)
-      zoomFactor = newWidth / totalBoardWidth;
-    else
-      zoomFactor = 1.0f;
-    StateHasChanged();
+      Single newWidth = await jsRuntime.InvokeAsync<Int32>("browserResize.getInnerWidth");
+      Single totalBoardWidth = cellSize * boardLineStrings[0].Length + cellSize * 2.5f;
+      if (newWidth < totalBoardWidth)
+          zoomFactor = newWidth / totalBoardWidth;
+      else
+          zoomFactor = 1.0f;
+      StateHasChanged();
   }
 
   private Char DetermineWinner(List<String> tempBoard, Int32 lastPlayX, Int32 lastPlayY)
   {
-    if (IsVictory('b', tempBoard, lastPlayX, lastPlayY))
-      return 'b';
-    else if (IsVictory('w', tempBoard, lastPlayX, lastPlayY))
-      return 'w';
-    else
-      return 'n';
+      if (IsVictory('b', tempBoard, lastPlayX, lastPlayY))
+          return 'b';
+      else if (IsVictory('w', tempBoard, lastPlayX, lastPlayY))
+          return 'w';
+      else
+          return 'n';
   }
 
   private Boolean IsVictory(Char stoneColor, List<String> tempBoard, Int32 lastPlayX, Int32 lastPlayY)
   {
-    Int32 dimX = tempBoard[0].Length;
-    Int32 dimY = tempBoard.Count;
-    if (!IsWithinBoundary(dimX, dimY, lastPlayX, lastPlayY))
+      Int32 dimX = tempBoard[0].Length;
+      Int32 dimY = tempBoard.Count;
+      if (!IsWithinBoundary(dimX, dimY, lastPlayX, lastPlayY))
+          return false;
+
+      StringBuilder sb = new StringBuilder();
+      String winningString = $"{stoneColor}{stoneColor}{stoneColor}{stoneColor}{stoneColor}{stoneColor}";
+
+      // Horizontal Match
+      sb.Clear();
+      for (Int32 i = 0; i < dimX; ++i)
+          sb.Append(tempBoard[lastPlayY][i]);
+      if (sb.ToString().Contains(winningString))
+          return true;
+
+      // Vertical Match
+      sb.Clear();
+      for (Int32 j = 0; j < dimY; ++j)
+          sb.Append(tempBoard[j][lastPlayX]);
+      if (sb.ToString().Contains(winningString))
+          return true;
+
+      // Diagonal left
+      Int32 ii = lastPlayX;
+      Int32 jj = lastPlayY;
+      while (IsWithinBoundary(dimX, dimY, ii - 1, jj - 1))
+      {
+          --ii;
+          --jj;
+      }
+      sb.Clear();
+      while (IsWithinBoundary(dimX, dimY, ii, jj))
+      {
+          sb.Append(tempBoard[jj][ii]);
+          ++ii;
+          ++jj;
+      }
+      if (sb.ToString().Contains(winningString))
+          return true;
+      // Diagonal right
+      ii = lastPlayX;
+      jj = lastPlayY;
+      while (IsWithinBoundary(dimX, dimY, ii - 1, jj + 1))
+      {
+          --ii;
+          ++jj;
+      }
+      sb.Clear();
+      while (IsWithinBoundary(dimX, dimY, ii, jj))
+      {
+          sb.Append(tempBoard[jj][ii]);
+          ++ii;
+          --jj;
+      }
+      if (sb.ToString().Contains(winningString))
+          return true;
+
       return false;
-
-    StringBuilder sb = new StringBuilder();
-    String winningString = $"{stoneColor}{stoneColor}{stoneColor}{stoneColor}{stoneColor}{stoneColor}";
-
-    // Horizontal Match
-    sb.Clear();
-    for (Int32 i = 0; i < dimX; ++i)
-      sb.Append(tempBoard[lastPlayY][i]);
-    if (sb.ToString().Contains(winningString))
-      return true;
-
-    // Vertical Match
-    sb.Clear();
-    for (Int32 j = 0; j < dimY; ++j)
-      sb.Append(tempBoard[j][lastPlayX]);
-    if (sb.ToString().Contains(winningString))
-      return true;
-
-    // Diagonal left
-    Int32 ii = lastPlayX;
-    Int32 jj = lastPlayY;
-    while (IsWithinBoundary(dimX, dimY, ii - 1, jj - 1))
-    {
-      --ii;
-      --jj;
-    }
-    sb.Clear();
-    while (IsWithinBoundary(dimX, dimY, ii, jj))
-    {
-      sb.Append(tempBoard[jj][ii]);
-      ++ii;
-      ++jj;
-    }
-    if (sb.ToString().Contains(winningString))
-      return true;
-    // Diagonal right
-    ii = lastPlayX;
-    jj = lastPlayY;
-    while (IsWithinBoundary(dimX, dimY, ii - 1, jj + 1))
-    {
-      --ii;
-      ++jj;
-    }
-    sb.Clear();
-    while (IsWithinBoundary(dimX, dimY, ii, jj))
-    {
-      sb.Append(tempBoard[jj][ii]);
-      ++ii;
-      --jj;
-    }
-    if (sb.ToString().Contains(winningString))
-      return true;
-
-    return false;
   }
 
   private Boolean IsWithinBoundary(Int32 dimX, Int32 dimY, Int32 x, Int32 y) => 0 <= x && x < dimX && 0 <= y && y < dimY;
 
   private Task Play(Int32 x, Int32 y)
   {
-    if (winnerExist)
-      return Task.CompletedTask;
-    else
-      return hubConnection.SendAsync("PlaceStone", GameId, x, y);
+      if (winnerExist)
+          return Task.CompletedTask;
+      else
+          return hubConnection.SendAsync("PlaceStone", GameId, x, y);
   }
 
   Task Undo() => hubConnection.SendAsync("UndoStone", GameId);
@@ -296,34 +301,34 @@
 
   public void Dispose()
   {
-    _ = hubConnection.DisposeAsync();
-    BrowserResizeService.OnResize -= BrowserHasResized;
+      _ = hubConnection.DisposeAsync();
+      BrowserResizeService.OnResize -= BrowserHasResized;
   }
 
   private void SetLanguages()
   {
-    stringResource = Connect6Lang.GetStringResources();
+      stringResource = Connect6Lang.GetStringResources();
 
-    // Parse query params
-    var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
-    if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("lang", out var languageCodeValue))
-    {
-      languageCode = languageCodeValue.First();
-      if (!stringResource.ContainsKey(languageCode))
-        languageCode = "en-us";
-    }
-    else
-      languageCode = "en-us";
+      // Parse query params
+      var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+      if (QueryHelpers.ParseQuery(uri.Query).TryGetValue("lang", out var languageCodeValue))
+      {
+          languageCode = languageCodeValue.First();
+          if (!stringResource.ContainsKey(languageCode))
+              languageCode = "en-us";
+      }
+      else
+          languageCode = "en-us";
   }
 
   private void SetVisualThemes()
   {
-    visualThemes = Connect6BoardResource.GetVisualThemes();
-    currentVisualTheme = "go"; // Default
+      visualThemes = Connect6BoardResource.GetVisualThemes();
+      currentVisualTheme = "go"; // Default
   }
 
   private void SetStoneSound()
   {
-    stoneSound = Connect6BoardResource.GetStoneSound();
+      stoneSound = Connect6BoardResource.GetStoneSound();
   }
 }
