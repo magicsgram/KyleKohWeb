@@ -35,23 +35,23 @@
         <br/>
       }
       <div style="zoom: @zoomFactor">
-        <table order="0" cellspacing="0" cellpadding="0" style="border:0; border-collapse:collapse; padding:@(cellSize * 2.5f); font-size:1px; display: inline;">
+        <table order="0" cellspacing="0" cellpadding="0" style="border:0px; border-collapse:collapse; padding:@(cellSize * 2.5f)px;  font-size:0px; display: inline; table-layout:fixed;">
           <tbody>
             @for (Int32 j = 0; j < boardLineStrings.Count;++j)
             {
-              <tr style="vertical-align:top; border:none;">
+              <tr style="vertical-align:top; border:0px; padding:0px;">
                 @for (Int32 i = 0; i < boardLineStrings[j].Length; ++i)
                 {
                   var x = i;
                   var y = j;
-                  <td>
+                  <td style="border:0px; padding:0px;">
                     @if ((x == lastPlayX && y == lastPlayY) || (x == lastLastPlayX && y == lastLastPlayY))
                     {
-                      <img @onclick="@(e => Play(x, y))" style="width @(cellSize)px; height: @(cellSize)px" src="data:image/png;base64,@visualThemes[currentVisualTheme][Char.ToUpper(boardLineStrings[j][i])]" />
+                      <img @onclick="@(e => Play(x, y))" style="border:0px; padding:0px;" src="data:image/png;base64,@visualThemes[currentVisualTheme][Char.ToUpper(boardLineStrings[j][i])]" />
                     }
                     else
                     {
-                      <img @onclick="@(e => Play(x, y))" style="width @(cellSize)px; height: @(cellSize)px;" src="data:image/png;base64,@visualThemes[currentVisualTheme][boardLineStrings[j][i]]" />
+                      <img @onclick="@(e => Play(x, y))" style="border:0px; padding:0px;" src="data:image/png;base64,@visualThemes[currentVisualTheme][boardLineStrings[j][i]]" />
                     }
                   </td>
                 }
