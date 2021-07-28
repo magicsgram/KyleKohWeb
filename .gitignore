@@ -4,9 +4,8 @@ Server/bin/
 Server/obj/
 Shared/bin/
 Shared/obj/
-Server/gamedb.db
+gamedb.db
+gamedb-log.db
 tempconn.tar.gz
-totalSessions.dat
-gameSessions.dat
 webpublish/
 .vs/

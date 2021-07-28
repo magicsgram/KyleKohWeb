@@ -17,13 +17,14 @@ namespace KyleKoh.Server.Hubs
     static LiteDB.LiteDatabase liteDatabase;
     static LiteDB.ILiteCollection<GameSession> gameSessionCollection;
     static LiteDB.ILiteCollection<SessionStat> sessionStatsCollection;
-    static SessionStat sessionStat;    
+    static SessionStat sessionStat;
 
     public Connect6Hub() : base()
     {
       if (!initialized)
       {
-        liteDatabase = new LiteDB.LiteDatabase("Filename = gamedb.db; Connection = shared");
+        String dbPath = Path.Combine(Directory.GetParent(".").FullName, "gamedb.db");
+        liteDatabase = new LiteDB.LiteDatabase($"Filename = {dbPath};");
 
         sessionStatsCollection = liteDatabase.GetCollection<SessionStat>("SessionStats");
         if (sessionStatsCollection.Count() == 0)
@@ -108,7 +109,7 @@ namespace KyleKoh.Server.Hubs
       GameSession currentGameSession = await FindGameAndHandleNoGameFound(gameId);
       if (currentGameSession == null)
         return;
-      
+
       Boolean result = currentGameSession.PlaceStone(x, y);
       if (result)
         gameSessionCollection.Update(currentGameSession);
