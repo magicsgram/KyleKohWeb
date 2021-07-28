@@ -72,9 +72,9 @@ namespace KyleKoh.Server.Hubs
 
     public Boolean OldGame() => SessionUpdatedAt < DateTime.Now - TimeSpan.FromMinutes(30);
 
-    public String PrintCurrentBoard()
+    public String GetCurrentBoardAsString()
     {
-      StringBuilder boardString = new StringBuilder();
+      StringBuilder boardString = new();
       for (Int32 j = 0; j < BoardSize; ++j)
       {
         for (Int32 i = 0; i < BoardSize; ++i)

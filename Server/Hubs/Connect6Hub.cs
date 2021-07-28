@@ -139,7 +139,7 @@ namespace KyleKoh.Server.Hubs
       Dictionary<String, String> state = new Dictionary<String, String>();
       state.Add("currentTurn", gameSessions[gameId].CurrentTurn().ToString());
       state.Add("currentTurnRemaining", gameSessions[gameId].CurrentTurnRemaining().ToString());
-      state.Add("boardString", gameSessions[gameId].PrintCurrentBoard());
+      state.Add("boardString", gameSessions[gameId].GetCurrentBoardAsString());
       state.Add("soundCue", soundCue);
 
       if (gameSessions[gameId].PlaysX.Count > 0)
