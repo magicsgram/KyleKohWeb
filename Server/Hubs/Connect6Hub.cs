@@ -11,33 +11,34 @@ namespace KyleKoh.Server.Hubs
   {
     static Boolean initialized = false;
 
-    static UInt64 totalSessions = 0;
-    static UInt64 totalConnections = 0;
-    static UInt64 totalMultiplayerGame = 0;
     static readonly Dictionary<String, HashSet<String>> connections = new();
     static readonly Dictionary<String, String> reverseMapping = new();
     static readonly Queue<String> serverLogsQueue = new();
     static LiteDB.LiteDatabase liteDatabase;
-    static LiteDB.ILiteCollection<GameSession> liteCollection;
+    static LiteDB.ILiteCollection<GameSession> gameSessionCollection;
+    static LiteDB.ILiteCollection<SessionStat> sessionStatsCollection;
+    static SessionStat sessionStat;    
 
     public Connect6Hub() : base()
     {
       if (!initialized)
       {
-        String totalSessionsFileName = Path.Combine(Directory.GetParent(".").FullName, "totalSessions.dat");
-        if (File.Exists(totalSessionsFileName))
+        liteDatabase = new LiteDB.LiteDatabase("Filename = gamedb.db; Connection = shared");
+
+        sessionStatsCollection = liteDatabase.GetCollection<SessionStat>("SessionStats");
+        if (sessionStatsCollection.Count() == 0)
         {
-          StreamReader sr = new(totalSessionsFileName);
-          totalSessions = UInt64.Parse(sr.ReadLine() as String);
-          totalConnections = UInt64.Parse(sr.ReadLine() as String);
-          totalMultiplayerGame = UInt64.Parse(sr.ReadLine() as String);
-          sr.Close();
+          sessionStat = new();
+          sessionStatsCollection.Insert(sessionStat);
+        }
+        else
+        {
+          sessionStat = sessionStatsCollection.FindAll().First();
         }
 
-        liteDatabase = new LiteDB.LiteDatabase("Filename = gamedb.db; Connection = shared");
-        liteCollection = liteDatabase.GetCollection<GameSession>("GameSessions");
-        liteCollection.EnsureIndex(x => x.GameId);
-        foreach (GameSession gameSession in liteCollection.FindAll())
+        gameSessionCollection = liteDatabase.GetCollection<GameSession>("GameSessions");
+        gameSessionCollection.EnsureIndex(x => x.GameId);
+        foreach (GameSession gameSession in gameSessionCollection.FindAll())
           connections.Add(gameSession.GameId, new HashSet<String>());
 
         initialized = true;
@@ -47,7 +48,7 @@ namespace KyleKoh.Server.Hubs
     public async Task CreateNewGame()
     {
       DateTime cutoffTime = DateTime.Now - TimeSpan.FromDays(200);
-      List<GameSession> oldGameSessions = liteCollection.Find(x => x.SessionUpdatedAt < cutoffTime).ToList();
+      List<GameSession> oldGameSessions = gameSessionCollection.Find(x => x.SessionUpdatedAt < cutoffTime).ToList();
       HashSet<String> gameIdsToRemove = oldGameSessions.Select(x => x.GameId).ToHashSet();
       foreach (String gameIdToRemove in gameIdsToRemove)
       {
@@ -57,19 +58,20 @@ namespace KyleKoh.Server.Hubs
             reverseMapping.Remove(keyValuePair.Key);
         await Report(gameIdToRemove, "Session destroyed");
       }
-      liteCollection.DeleteMany(x => gameIdsToRemove.Contains(x.GameId));
+      gameSessionCollection.DeleteMany(x => gameIdsToRemove.Contains(x.GameId));
 
       String newGameId = "";
       do
       {
         Guid g = Guid.NewGuid();
         newGameId = g.ToString().Substring(0, 8);
-      } while (liteCollection.FindOne(x => x.GameId == newGameId) != null);
+      } while (gameSessionCollection.FindOne(x => x.GameId == newGameId) != null);
 
       GameSession newGameSession = new(newGameId);
-      liteCollection.Insert(newGameSession);
+      gameSessionCollection.Insert(newGameSession);
       connections.Add(newGameId, new HashSet<String>());
-      ++totalSessions;
+      ++sessionStat.TotalSessions;
+      sessionStatsCollection.Update(sessionStat);
       await Clients.Caller.SendAsync("NewGameIdReceived", newGameId);
       await Report(newGameId, "New game made");
     }
@@ -88,9 +90,10 @@ namespace KyleKoh.Server.Hubs
       }
       await SendCurrentStateAsync(currentGameSession);
       await SendConnectionSize(currentGameSession.GameId);
-      ++totalConnections;
+      ++sessionStat.TotalConnections;
       if (connections[currentGameSession.GameId].Count == 2)
-        ++totalMultiplayerGame;
+        ++sessionStat.TotalMultiplayerGame;
+      sessionStatsCollection.Update(sessionStat);
       await Report(currentGameSession.GameId, "New user connected to game");
     }
 
@@ -108,14 +111,14 @@ namespace KyleKoh.Server.Hubs
       
       Boolean result = currentGameSession.PlaceStone(x, y);
       if (result)
-        liteCollection.Update(currentGameSession);
+        gameSessionCollection.Update(currentGameSession);
       await SendCurrentStateAsync(currentGameSession, result ? "placeStone" : "");
       await Report(currentGameSession.GameId, $"User placed stone ({x:D2}, {y:D2})");
     }
 
     public async Task<GameSession> FindGameAndHandleNoGameFound(String gameId)
     {
-      GameSession currentGameSession = liteCollection.FindOne(x => x.GameId == gameId);
+      GameSession currentGameSession = gameSessionCollection.FindOne(x => x.GameId == gameId);
       if (currentGameSession == null)
       {
         await Clients.Caller.SendAsync("NoGameFound", "");
@@ -130,7 +133,7 @@ namespace KyleKoh.Server.Hubs
       if (currentGameSession == null)
         return;
       currentGameSession.UndoStone();
-      liteCollection.Update(currentGameSession);
+      gameSessionCollection.Update(currentGameSession);
       await SendCurrentStateAsync(currentGameSession);
       await Report(currentGameSession.GameId, "User undid");
     }
@@ -141,7 +144,7 @@ namespace KyleKoh.Server.Hubs
       if (currentGameSession == null)
         return;
       currentGameSession.ResetBoard();
-      liteCollection.Update(currentGameSession);
+      gameSessionCollection.Update(currentGameSession);
       await SendCurrentStateAsync(currentGameSession);
       await Report(currentGameSession.GameId, "Board reset");
     }
@@ -223,10 +226,7 @@ namespace KyleKoh.Server.Hubs
         sr.Close();
 
         if (adminKeyFromClient == adminKey)
-        {
-          File.WriteAllText(Path.Combine(Directory.GetParent(".").FullName, "totalSessions.dat"), $"{totalSessions}\n{totalConnections}\n{totalMultiplayerGame}");
           Environment.Exit(0);
-        }
       }
     }
 
@@ -234,7 +234,7 @@ namespace KyleKoh.Server.Hubs
     {
       if (gameId.Length > 0 && message.Length > 0)
       {
-        String reportMessage = $"{DateTime.Now} [{totalSessions} TS, {totalConnections} TU, {totalMultiplayerGame} MUS, {liteCollection.Query().Count()} CS, {reverseMapping.Count} CU] {gameId} ({connections[gameId].Count}) : {message,-30}{Context.ConnectionId}";
+        String reportMessage = $"{DateTime.Now} [{sessionStat.TotalSessions} TS, {sessionStat.TotalConnections} TU, {sessionStat.TotalMultiplayerGame} MUS, {gameSessionCollection.Query().Count()} CS, {reverseMapping.Count} CU] {gameId} ({connections[gameId].Count}) : {message,-30}{Context.ConnectionId}";
         while (serverLogsQueue.Count > 30)
           serverLogsQueue.Dequeue();
         serverLogsQueue.Enqueue(reportMessage);
