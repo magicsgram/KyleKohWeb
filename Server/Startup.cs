@@ -18,7 +18,6 @@ namespace KyleKoh.Server
 
         public IConfiguration Configuration { get; }
 
-        #region snippet_ConfigureServices
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddSignalR();
@@ -30,9 +29,7 @@ namespace KyleKoh.Server
                     new[] { "application/octet-stream" });
             });
         }
-        #endregion
 
-        #region snippet_Configure
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             app.UseResponseCompression();
@@ -62,6 +59,5 @@ namespace KyleKoh.Server
                 endpoints.MapFallbackToFile("index.html");
             });
         }
-        #endregion
     }
 }

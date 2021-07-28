@@ -1,16 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.Serialization;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace KyleKoh.Server.Hubs
 {
-  [Serializable]
   public class GameSession
   {
+    public Int64 Id { get; set; }
+
     public Int32 BoardSize { get; set; } = 19; // Always odd number. Never below 11
+
+    public String GameId { get; set; }
 
     public Char[][] EmptyBoard { get; set; }
 
@@ -19,10 +20,11 @@ namespace KyleKoh.Server.Hubs
     public List<Int32> PlaysX { get; set; } = new List<Int32>();
     public List<Int32> PlaysY { get; set; } = new List<Int32>();
 
-    private DateTime SessionUpdatedAt { get; set; }
+    public DateTime SessionUpdatedAt { get; set; }
 
-    public GameSession()
+    public GameSession(String gameId)
     {
+      GameId = gameId;
       EmptyBoard = new Char[BoardSize][];
       CurrentBoard = new Char[BoardSize][];
 
@@ -63,14 +65,18 @@ namespace KyleKoh.Server.Hubs
       EmptyBoard[BoardSize / 2][BoardSize - 4] = '+';
       EmptyBoard[BoardSize - 4][BoardSize - 4] = '+';
 
+      ResetBoard();
+    }
+
+    public void ResetBoard()
+    {
+      PlaysX.Clear();
+      PlaysY.Clear();
       for (Int32 j = 0; j < BoardSize; ++j)
         for (Int32 i = 0; i < BoardSize; ++i)
           CurrentBoard[j][i] = EmptyBoard[j][i];
-
       SessionUpdatedAt = DateTime.Now;
     }
-
-    public Boolean OldGame() => SessionUpdatedAt < DateTime.Now - TimeSpan.FromMinutes(30);
 
     public String GetCurrentBoardAsString()
     {
@@ -81,12 +87,12 @@ namespace KyleKoh.Server.Hubs
           boardString.Append(CurrentBoard[j][i]);
         boardString.AppendLine("");
       }
-      SessionUpdatedAt = DateTime.Now;
       return boardString.ToString().Trim('\r', '\n').Replace("\r", "");
     }
 
     public Boolean PlaceStone(Int32 x, Int32 y)
     {
+      SessionUpdatedAt = DateTime.Now;
       if (CurrentBoard[y][x] != 'w' && CurrentBoard[y][x] != 'b')
       {
         CurrentBoard[y][x] = CurrentTurn();
@@ -99,6 +105,7 @@ namespace KyleKoh.Server.Hubs
 
     public void UndoStone()
     {
+      SessionUpdatedAt = DateTime.Now;
       if (PlaysX.Count > 0)
       {
         var lastCoordinateX = PlaysX.Last();
@@ -117,7 +124,6 @@ namespace KyleKoh.Server.Hubs
     }
 
     public Int32 CurrentTurnRemaining(Int32 turn) => (turn + 1) % 2 == 0 ? 2 : 1;
-
 
     public Char CurrentTurn() => CurrentTurn(PlaysX.Count);
 

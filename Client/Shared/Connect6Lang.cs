@@ -24,8 +24,8 @@ public class Connect6Lang
     stringResource["en-us"].Add("UndoButton", "Undo");
     stringResource["ko-kr"].Add("UndoButton", "되감기");
 
-    stringResource["en-us"].Add("ExpirationMessage", "Game session will expire if no activities for 30 minutes.");
-    stringResource["ko-kr"].Add("ExpirationMessage", "30분동안 게임 진행이 없으면 세션이 종료됩니다.");
+    stringResource["en-us"].Add("ExpirationMessage", "Game session may expire if no activities for 24 hours.");
+    stringResource["ko-kr"].Add("ExpirationMessage", "24시간동안 게임 진행이 없으면 세션이 종료될 수 있습니다.");
 
     stringResource["en-us"].Add("NoGameFound", "No game found. Check the address.");
     stringResource["ko-kr"].Add("NoGameFound", "진행중인 게임이 없습니다. 주소를 확인해보세요.");
