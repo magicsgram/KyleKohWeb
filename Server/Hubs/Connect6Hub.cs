@@ -25,6 +25,9 @@ namespace KyleKoh.Server.Hubs
       {
         String dbPath = Path.Combine(Directory.GetParent(".").FullName, "gamedb.db");
         liteDatabase = new LiteDB.LiteDatabase($"Filename = {dbPath};");
+        liteDatabase.Commit();
+        liteDatabase.Checkpoint();
+        liteDatabase.Rebuild();
 
         sessionStatsCollection = liteDatabase.GetCollection<SessionStat>("SessionStats");
         if (sessionStatsCollection.Count() == 0)
@@ -73,6 +76,9 @@ namespace KyleKoh.Server.Hubs
       connections.Add(newGameId, new HashSet<String>());
       ++sessionStat.TotalSessions;
       sessionStatsCollection.Update(sessionStat);
+
+      liteDatabase.Checkpoint();
+
       await Clients.Caller.SendAsync("NewGameIdReceived", newGameId);
       await Report(newGameId, "New game made");
     }
