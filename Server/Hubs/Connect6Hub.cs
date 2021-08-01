@@ -25,7 +25,6 @@ namespace KyleKoh.Server.Hubs
       {
         String dbPath = Path.Combine(Directory.GetParent(".").FullName, "gamedb.db");
         liteDatabase = new LiteDB.LiteDatabase($"Filename = {dbPath};");
-        liteDatabase.Commit();
         liteDatabase.Checkpoint();
         liteDatabase.Rebuild();
 
@@ -49,9 +48,9 @@ namespace KyleKoh.Server.Hubs
       }
     }
 
-    public async Task CreateNewGame()
+    public async Task CreateNewGame(DateTime lastDbCleaningAt)
     {
-      DateTime cutoffTime = DateTime.Now - TimeSpan.FromDays(200);
+      DateTime cutoffTime = DateTime.Now - TimeSpan.FromDays(365);
       List<GameSession> oldGameSessions = gameSessionCollection.Find(x => x.SessionUpdatedAt < cutoffTime).ToList();
       HashSet<String> gameIdsToRemove = oldGameSessions.Select(x => x.GameId).ToHashSet();
       foreach (String gameIdToRemove in gameIdsToRemove)
@@ -63,6 +62,12 @@ namespace KyleKoh.Server.Hubs
         await Report(gameIdToRemove, "Session destroyed");
       }
       gameSessionCollection.DeleteMany(x => gameIdsToRemove.Contains(x.GameId));
+      if((DateTime.Now - sessionStat.LastDbCleaningAt) > TimeSpan.FromDays(7))
+      {
+        liteDatabase.Checkpoint();
+        liteDatabase.Rebuild();
+        sessionStat.LastDbCleaningAt = DateTime.Now;
+      }
 
       String newGameId = "";
       do
@@ -76,8 +81,6 @@ namespace KyleKoh.Server.Hubs
       connections.Add(newGameId, new HashSet<String>());
       ++sessionStat.TotalSessions;
       sessionStatsCollection.Update(sessionStat);
-
-      liteDatabase.Checkpoint();
 
       await Clients.Caller.SendAsync("NewGameIdReceived", newGameId);
       await Report(newGameId, "New game made");
