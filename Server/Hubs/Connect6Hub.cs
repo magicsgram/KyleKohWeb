@@ -25,8 +25,6 @@ namespace KyleKoh.Server.Hubs
       {
         String dbPath = Path.Combine(Directory.GetParent(".").FullName, "gamedb.db");
         liteDatabase = new LiteDB.LiteDatabase($"Filename = {dbPath};");
-        liteDatabase.Checkpoint();
-        liteDatabase.Rebuild();
 
         sessionStatsCollection = liteDatabase.GetCollection<SessionStat>("SessionStats");
         if (sessionStatsCollection.Count() == 0)
@@ -41,33 +39,28 @@ namespace KyleKoh.Server.Hubs
 
         gameSessionCollection = liteDatabase.GetCollection<GameSession>("GameSessions");
         gameSessionCollection.EnsureIndex(x => x.GameId);
-        foreach (GameSession gameSession in gameSessionCollection.FindAll())
-          connections.Add(gameSession.GameId, new HashSet<String>());
 
+        CleanDB();
         initialized = true;
       }
     }
 
-    public async Task CreateNewGame(DateTime lastDbCleaningAt)
+    public async Task CreateNewGame()
     {
       DateTime cutoffTime = DateTime.Now - TimeSpan.FromDays(365);
       List<GameSession> oldGameSessions = gameSessionCollection.Find(x => x.SessionUpdatedAt < cutoffTime).ToList();
       HashSet<String> gameIdsToRemove = oldGameSessions.Select(x => x.GameId).ToHashSet();
+      foreach (var zeroConnection in connections.Where(x => x.Value.Count == 0))
+        if (!gameIdsToRemove.Contains(zeroConnection.Key))
+          gameIdsToRemove.Add(zeroConnection.Key);
+
       foreach (String gameIdToRemove in gameIdsToRemove)
-      {
-        connections.Remove(gameIdToRemove);
-        foreach (var keyValuePair in reverseMapping.ToList())
-          if (keyValuePair.Value == gameIdToRemove)
-            reverseMapping.Remove(keyValuePair.Key);
-        await Report(gameIdToRemove, "Session destroyed");
-      }
+        RemoveGameIdFromConnection(gameIdToRemove);
       gameSessionCollection.DeleteMany(x => gameIdsToRemove.Contains(x.GameId));
+
+      // Do some db cleanup
       if((DateTime.Now - sessionStat.LastDbCleaningAt) > TimeSpan.FromDays(7))
-      {
-        liteDatabase.Checkpoint();
-        liteDatabase.Rebuild();
-        sessionStat.LastDbCleaningAt = DateTime.Now;
-      }
+        CleanDB();
 
       String newGameId = "";
       do
@@ -84,6 +77,21 @@ namespace KyleKoh.Server.Hubs
 
       await Clients.Caller.SendAsync("NewGameIdReceived", newGameId);
       await Report(newGameId, "New game made");
+    }
+
+    private void RemoveGameIdFromConnection(string gameIdToRemove)
+    {
+      connections.Remove(gameIdToRemove);
+      foreach (var keyValuePair in reverseMapping.ToList())
+        if (keyValuePair.Value == gameIdToRemove)
+          reverseMapping.Remove(keyValuePair.Key);
+    }
+
+    private static void CleanDB()
+    {
+      liteDatabase.Checkpoint();
+      liteDatabase.Rebuild();
+      sessionStat.LastDbCleaningAt = DateTime.Now;
     }
 
     public async Task InitializeBoardAndConnection(String gameId)
@@ -219,6 +227,9 @@ namespace KyleKoh.Server.Hubs
           String gameId = reverseMapping[Context.ConnectionId];
           reverseMapping.Remove(Context.ConnectionId);
           connections[gameId].Remove(Context.ConnectionId);
+          if (connections[gameId].Count == 0)
+            connections.Remove(gameId);
+
           await SendConnectionSize(gameId);
           await Report(gameId, "User disconnected");
         }
