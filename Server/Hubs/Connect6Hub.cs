@@ -11,9 +11,9 @@ namespace KyleKoh.Server.Hubs
   {
     static Boolean initialized = false;
 
-    static readonly Dictionary<String, HashSet<String>> connections = new();
-    static readonly Dictionary<String, String> reverseMapping = new();
-    static readonly Queue<String> serverLogsQueue = new();
+    static Dictionary<String, HashSet<String>> connections;
+    static Dictionary<String, String> reverseMapping;
+    static Queue<String> serverLogsQueue;
     static LiteDB.LiteDatabase liteDatabase;
     static LiteDB.ILiteCollection<GameSession> gameSessionCollection;
     static LiteDB.ILiteCollection<SessionStat> sessionStatsCollection;
@@ -23,6 +23,10 @@ namespace KyleKoh.Server.Hubs
     {
       if (!initialized)
       {
+        connections = new();
+        reverseMapping = new();
+        serverLogsQueue = new();
+
         String dbPath = Path.Combine(Directory.GetParent(".").FullName, "gamedb.db");
         liteDatabase = new LiteDB.LiteDatabase($"Filename = {dbPath};");
 
@@ -59,7 +63,7 @@ namespace KyleKoh.Server.Hubs
       gameSessionCollection.DeleteMany(x => gameIdsToRemove.Contains(x.GameId));
 
       // Do some db cleanup
-      if((DateTime.Now - sessionStat.LastDbCleaningAt) > TimeSpan.FromDays(7))
+      if ((DateTime.Now - sessionStat.LastDbCleaningAt) > TimeSpan.FromDays(7))
         CleanDB();
 
       String newGameId = "";
@@ -79,7 +83,7 @@ namespace KyleKoh.Server.Hubs
       await Report(newGameId, "New game made");
     }
 
-    private void RemoveGameIdFromConnection(string gameIdToRemove)
+    private static void RemoveGameIdFromConnection(string gameIdToRemove)
     {
       connections.Remove(gameIdToRemove);
       foreach (var keyValuePair in reverseMapping.ToList())
@@ -234,20 +238,6 @@ namespace KyleKoh.Server.Hubs
           await Report(gameId, "User disconnected");
         }
         catch { }
-      }
-    }
-
-    public void ParkAndExit(String adminKeyFromClient)
-    {
-      String adminKeyFileName = Path.Combine(Directory.GetParent(".").FullName, "adminKey.txt");
-      if (File.Exists(adminKeyFileName))
-      {
-        StreamReader sr = new(adminKeyFileName);
-        String adminKey = sr.ReadLine() as String;
-        sr.Close();
-
-        if (adminKeyFromClient == adminKey)
-          Environment.Exit(0);
       }
     }
 

@@ -10,54 +10,54 @@ using KyleKoh.Server.Hubs;
 namespace KyleKoh.Server
 {
   public class Startup
+  {
+    public Startup(IConfiguration configuration)
     {
-        public Startup(IConfiguration configuration)
-        {
-            Configuration = configuration;
-        }
-
-        public IConfiguration Configuration { get; }
-
-        public void ConfigureServices(IServiceCollection services)
-        {
-            services.AddSignalR();
-            services.AddControllersWithViews();
-            services.AddRazorPages();
-            services.AddResponseCompression(opts =>
-            {
-                opts.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(
-                    new[] { "application/octet-stream" });
-            });
-        }
-
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
-        {
-            app.UseResponseCompression();
-
-            if (env.IsDevelopment())
-            {
-                app.UseDeveloperExceptionPage();
-                app.UseWebAssemblyDebugging();
-            }
-            else
-            {
-                app.UseExceptionHandler("/Error");
-                app.UseHsts();
-            }
-
-            //app.UseHttpsRedirection();
-            app.UseBlazorFrameworkFiles();
-            app.UseStaticFiles();
-
-            app.UseRouting();
-
-            app.UseEndpoints(endpoints =>
-            {
-                endpoints.MapRazorPages();
-                endpoints.MapControllers();
-                endpoints.MapHub<Connect6Hub>("/connect6hub");
-                endpoints.MapFallbackToFile("index.html");
-            });
-        }
+      Configuration = configuration;
     }
+
+    public IConfiguration Configuration { get; }
+
+    public void ConfigureServices(IServiceCollection services)
+    {
+      services.AddSignalR();
+      services.AddControllersWithViews();
+      services.AddRazorPages();
+      services.AddResponseCompression(opts =>
+      {
+        opts.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(
+                  new[] { "application/octet-stream" });
+      });
+    }
+
+    public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+    {
+      app.UseResponseCompression();
+
+      if (env.IsDevelopment())
+      {
+        app.UseDeveloperExceptionPage();
+        app.UseWebAssemblyDebugging();
+      }
+      else
+      {
+        app.UseExceptionHandler("/Error");
+        app.UseHsts();
+      }
+
+      //app.UseHttpsRedirection();
+      app.UseBlazorFrameworkFiles();
+      app.UseStaticFiles();
+
+      app.UseRouting();
+
+      app.UseEndpoints(endpoints =>
+      {
+        endpoints.MapRazorPages();
+        endpoints.MapControllers();
+        endpoints.MapHub<Connect6Hub>("/connect6hub");
+        endpoints.MapFallbackToFile("index.html");
+      });
+    }
+  }
 }
