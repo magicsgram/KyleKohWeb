@@ -105,6 +105,7 @@ namespace KyleKoh.Server.Hubs
         return;
 
       await Groups.AddToGroupAsync(Context.ConnectionId, currentGameSession.GameId);
+      connections.TryAdd(currentGameSession.GameId, new());
       if (!connections[currentGameSession.GameId].Contains(Context.ConnectionId))
       {
         connections[currentGameSession.GameId].Add(Context.ConnectionId);
