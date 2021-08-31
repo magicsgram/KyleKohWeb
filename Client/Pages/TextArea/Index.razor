@@ -1,0 +1,17 @@
+﻿@page "/textarea"
+
+<body>
+  <textarea rows="5" style="width: 100%; max-width: 100%;" @bind="InputValue" @bind:event="oninput">
+  </textarea>
+  <hr>
+  <div>
+    <pre style="white-space: pre-wrap;">
+      @InputValue
+    </pre>
+  </div>
+</body>
+
+
+@code {
+  private String InputValue { get; set; }
+}
