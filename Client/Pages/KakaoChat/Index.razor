@@ -7,7 +7,9 @@
 
 <h1>카카오톡 단톡방 분석기</h1>
 <p>카카오톡 대화 저장파일을 선택하세요 (서버로 그 어떤 정보도 전달되지 않고 모든 정보는 보시는 페이지 내에서 분석됩니다.)</p>
-<InputFile OnChange="@LoadFiles" /><br/><br/>
+<InputFile OnChange="@LoadFiles" />
+<br />
+<br />
 
 <p>@((MarkupString)result)</p>
 
@@ -29,14 +31,23 @@
 
   private async Task<String> AnalyzeLinesAsync(List<String> lines)
   {
-    return await Task<String>.Run(() => {
+    return await Task<String>.Run(() =>
+    {
+      String languageMode = "ko";
+      if (lines[0].StartsWith("KakaoTalk Chats"))
+        languageMode = "en";
       Dictionary<String, (Int32 conversationCount, DateTime lastConversationDateTime)> userStats = new Dictionary<String, (Int32, DateTime)>();
       Dictionary<String, String> latestStatus = new Dictionary<String, String>();
       foreach (String line in lines)
       {
-        if (line.Contains(',') && line.Contains(" : "))
+        Boolean shouldCheck = false;
+        if (languageMode == "ko")
+          shouldCheck = line.Contains(',') && line.Contains(" : ");
+        else if (languageMode == "en")
+          shouldCheck = line.Count((c) => c == ',') == 3 && line.Contains(" : ");
+        if (shouldCheck)
         {
-          var conversation = GetConversationLine(line);
+          var conversation = GetConversationLine(line, languageMode);
           String userName = conversation.userName;
           if (userName == "")
             continue;
@@ -55,32 +66,65 @@
             userStats[userName] = value;
           }
         }
-        else if (line.EndsWith("님이 들어왔습니다."))
+        else if (languageMode == "ko")
         {
-          String userName = line.Substring(line.IndexOf(", ") + 2);
-          userName = userName.Substring(0, userName.IndexOf("님이 들어왔습니다."));
-          if (!latestStatus.ContainsKey(userName))
-            latestStatus.Add(userName, "활동중");
-          else
-            latestStatus[userName] = "활동중";
+          if (line.EndsWith("님이 들어왔습니다."))
+          {
+            String userName = line.Substring(line.IndexOf(", ") + 2);
+            userName = userName.Substring(0, userName.IndexOf("님이 들어왔습니다."));
+            if (!latestStatus.ContainsKey(userName))
+              latestStatus.Add(userName, "활동중");
+            else
+              latestStatus[userName] = "활동중";
+          }
+          else if (line.EndsWith("님이 나갔습니다."))
+          {
+            String userName = line.Substring(line.IndexOf(", ") + 2);
+            userName = userName.Substring(0, userName.IndexOf("님이 나갔습니다."));
+            if (!latestStatus.ContainsKey(userName))
+              latestStatus.Add(userName, "나감");
+            else
+              latestStatus[userName] = "나감";
+          }
+          else if (line.EndsWith("님을 내보냈습니다."))
+          {
+            String userName = line.Substring(line.IndexOf(", ") + 2);
+            userName = userName.Substring(0, userName.IndexOf("님을 내보냈습니다."));
+            if (!latestStatus.ContainsKey(userName))
+              latestStatus.Add(userName, "내보냄");
+            else
+              latestStatus[userName] = "내보냄";
+          }
         }
-        else if (line.EndsWith("님이 나갔습니다."))
+        else if (languageMode == "en")
         {
-          String userName = line.Substring(line.IndexOf(", ") + 2);
-          userName = userName.Substring(0, userName.IndexOf("님이 나갔습니다."));
-          if (!latestStatus.ContainsKey(userName))
-            latestStatus.Add(userName, "나감");
-          else
-            latestStatus[userName] = "나감";
-        }
-        else if (line.EndsWith("님을 내보냈습니다."))
-        {
-          String userName = line.Substring(line.IndexOf(", ") + 2);
-          userName = userName.Substring(0, userName.IndexOf("님을 내보냈습니다."));
-          if (!latestStatus.ContainsKey(userName))
-            latestStatus.Add(userName, "내보냄");
-          else
-            latestStatus[userName] = "내보냄";
+          if (line.EndsWith(" joined this chatroom."))
+          {
+            String userName = line.Substring(line.IndexOf("M, ") + 3);
+            userName = userName.Substring(0, userName.IndexOf(" joined this chatroom."));
+            if (!latestStatus.ContainsKey(userName))
+              latestStatus.Add(userName, "활동중");
+            else
+              latestStatus[userName] = "활동중";
+          }
+          else if (line.EndsWith(" left this chatroom."))
+          {
+            String userName = line.Substring(line.IndexOf("M, ") + 3);
+            userName = userName.Substring(0, userName.IndexOf(" left this chatroom."));
+            if (!latestStatus.ContainsKey(userName))
+              latestStatus.Add(userName, "나감");
+            else
+              latestStatus[userName] = "나감";
+          }
+          else if (line.EndsWith(" has been removed from this chatroom."))
+          {
+            String userName = line.Substring(line.IndexOf("M, ") + 3);
+            userName = userName.Substring(0, userName.IndexOf(" has been removed from this chatroom."));
+            if (!latestStatus.ContainsKey(userName))
+              latestStatus.Add(userName, "내보냄");
+            else
+              latestStatus[userName] = "내보냄";
+          }
         }
       }
 
@@ -109,7 +153,7 @@
         Int32 convoCount = user.Value.conversationCount;
         DateTime lastConvoTime = user.Value.lastConversationDateTime;
         TimeSpan timeDiff = today - lastConvoTime;
-        String deltaString = (Int32)timeDiff.TotalDays == 0 ? "오늘" : $"{(Int32)timeDiff.TotalDays} 일전";
+        String deltaString = timeDiff.Days == 0 ? (timeDiff.Hours == 0 ? $"{timeDiff.Minutes} 분전" : $"{timeDiff.Hours} 시간전") : $"{(Int32)timeDiff.TotalDays} 일전";
         sb.AppendLine($"<tr><td>{userName}</td><td>{convoCount}</td><td>{lastConvoTime.ToString("yyyy-MM-dd HH:mm:ss")} ({deltaString})</td></tr>");
       }
     }
@@ -117,19 +161,34 @@
     return sb.ToString();
   }
 
-  private (DateTime? conversationDateTime, String userName) GetConversationLine(String line)
+  private (DateTime? conversationDateTime, String userName) GetConversationLine(String line, String languageMode)
   {
-    String[] segments = line.Split(',');
-    DateTime? dateTime = ParseDateTime(segments[0]);
-    if (dateTime == null)
-      return (null, "");
+    if (languageMode == "ko")
+    {
+      String[] segments = line.Split(',');
+      DateTime? dateTime = ParseDateTime(segments[0]);
+      if (dateTime == null)
+        return (null, "");
+      else
+        return (dateTime, segments[1].Split(" : ")[0].Trim());
+    }
+    else if (languageMode == "en")
+    {
+      Int32 dateEndsIndex = line.IndexOf("M, ") + 1;
+      String dateTimeString = line.Substring(0, dateEndsIndex);
+      if (!DateTime.TryParse(dateTimeString, out DateTime dateTime))
+        return (null, "");
+      else
+        return (dateTime, line.Substring(dateEndsIndex + 2).Split(" : ")[0].Trim());
+    }
     else
-      return (dateTime, segments[1].Split(" : ")[0].Trim());
+      return (null, "");
   }
+
   private DateTime? ParseDateTime(String dateTimeSting)
   {
     String[] dateTimeParts = dateTimeSting.Split(' ');
-    if(dateTimeParts.Length != 5)
+    if (dateTimeParts.Length != 5)
       return null;
     Int32 year;
     if (!Int32.TryParse(dateTimeParts[0].Substring(0, dateTimeParts[0].Length - 1), out year))
@@ -153,5 +212,5 @@
     return newDateTime;
   }
 
-  public void Dispose() {}
+  public void Dispose() { }
 }
