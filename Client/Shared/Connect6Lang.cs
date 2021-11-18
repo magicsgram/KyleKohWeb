@@ -16,8 +16,8 @@ namespace KyleKoh.Client.Shared
       stringResource["en-us"].Add("GameTitle", "Connect6");
       stringResource["ko-kr"].Add("GameTitle", "육목");
 
-      stringResource["en-us"].Add("DisconnectRefresh", "Service interrupted. We'll try to reconnect. Refresh the page if it doesn't work after a few seconds.");
-      stringResource["ko-kr"].Add("DisconnectRefresh", "서비스 연결이 끊겼습니다. 자동으로 재접속 합니다. 몇 초 후에도 바둑판이 보이지 않으면 새로고침을 해주세요.");
+      //stringResource["en-us"].Add("DisconnectRefresh", "Service interrupted. We'll try to reconnect. Refresh the page if it doesn't work after a few seconds.");
+      //stringResource["ko-kr"].Add("DisconnectRefresh", "서비스 연결이 끊겼습니다. 자동으로 재접속 합니다. 몇 초 후에도 바둑판이 보이지 않으면 새로고침을 해주세요.");
 
       stringResource["en-us"].Add("CopyLinkInstruction", "Copy the link below and share with others to play together.");
       stringResource["ko-kr"].Add("CopyLinkInstruction", "아래 링크를 복사해 다른 사람과 공유하면 함께 플레이 하실 수 있습니다.");
