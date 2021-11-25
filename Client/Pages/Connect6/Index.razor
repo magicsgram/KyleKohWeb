@@ -3,24 +3,43 @@
 @inject NavigationManager NavigationManager
 @implements IDisposable
 
-<p><button @onclick="CreateNewGame_enUS" disabled="@(!IsConnected)">Create new game (English)</button></p>
-<p><button @onclick="CreateNewGame_koKR" disabled="@(!IsConnected)">새 게임 시작하기 (한국어)</button></p>
+@code {
+}
+
+@foreach (var key in languageKeys)
+{
+  @stringResources[key]["GameTitle"]
+  <p><button @onclick="@((args) => CreateNewGame(key))" disabled="@(!IsConnected)">@stringResources[key]["CreateGame"] (@stringResources[key]["LanguageName"])</button></p>
+}
+
 
 @code {
   private HubConnection hubConnection;
 
   private String languageCode = "";
 
+  private Dictionary<String, Dictionary<String, String>> stringResources;
+  private List<String> languageKeys;
+
   protected override async Task OnInitializedAsync()
   {
+    stringResources = Connect6Lang.GetStringResources();
+    languageKeys = stringResources.Keys.ToList();
+    languageKeys.Sort();
+
     hubConnection = new HubConnectionBuilder()
       .WithUrl(NavigationManager.ToAbsoluteUri("/connect6hub"))
       .Build();
 
     // Force load page. There's a problem w/ loading soundfiles when use regular path novigation.
     hubConnection.On<String>("NewGameIdReceived", (gameId) => NavigationManager.NavigateTo($"connect6/game/{gameId}?lang={languageCode}", true));
-
     await hubConnection.StartAsync();
+  }
+
+  Task CreateNewGame(String key)
+  {
+    languageCode = key;
+    return hubConnection.SendAsync("CreateNewGame");
   }
 
   Task CreateNewGame_enUS()

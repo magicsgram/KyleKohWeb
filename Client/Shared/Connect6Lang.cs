@@ -8,10 +8,16 @@ namespace KyleKoh.Client.Shared
     public static Dictionary<string, Dictionary<string, string>> GetStringResources()
     {
       var stringResource = new Dictionary<string, Dictionary<string, string>>
-    {
-      { "en-us", new Dictionary<string, string>() },
-      { "ko-kr", new Dictionary<string, string>() }
-    };
+      {
+        { "en-us", new Dictionary<string, string>() },
+        { "ko-kr", new Dictionary<string, string>() }
+      };
+
+      stringResource["en-us"].Add("LanguageName", "English");
+      stringResource["ko-kr"].Add("LanguageName", "한국어");
+
+      stringResource["en-us"].Add("CreateGame", "Create a new game");
+      stringResource["ko-kr"].Add("CreateGame", "새 게임 시작하기");
 
       stringResource["en-us"].Add("GameTitle", "Connect6");
       stringResource["ko-kr"].Add("GameTitle", "육목");
