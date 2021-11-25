@@ -3,7 +3,7 @@ window.soundPlayer = {
     let stoneSound = document.getElementById('stoneSound');
     if (stoneSound) {
       stoneSound.load();
-      stoneSound.volume = 0.5;
+      stoneSound.volume = 0.07;
       stoneSound.play();
     }
   }

@@ -11,15 +11,37 @@
 <InputFile OnChange="@LoadFiles" />
 <br />
 <br />
-
-<p>@((MarkupString)result)</p>
+<p>@status</p>
+@if (result != "")
+{
+  <h3>필터</h3>
+  <select @onchange="MinimumConvoFilterChanged">
+    <option value="1">최소 대화 1번</option>
+    <option value="10">최소 대화 10번</option>
+    <option value="30">최소 대화 30번</option>
+    <option value="50">최소 대화 50번</option>
+    <option value="100">최소 대화 100번</option>
+    <option value="500">최소 대화 500번</option>
+    <option value="1000">최소 대화 1000번</option>
+    <option value="3000">최소 대화 3000번</option>
+    <option value="5000">최소 대화 5000번</option>
+    <option value="10000">최소 대화 10000번</option>
+  </select>
+  <br/>
+  <br/>
+  <p>@((MarkupString)result)</p>
+}
 
 @code {
+  String status = "";
   String result = "";
+  Int32 minimumConvo = 0;
+  Dictionary<String, KakaoStat> userStats = new();
+  Dictionary<String, String> latestStatus = new();
 
   async Task LoadFiles(InputFileChangeEventArgs e)
   {
-    result = "파일 읽는중";
+    status = "파일 읽는중";
     StateHasChanged();
     await Task.Delay(1);
 
@@ -32,12 +54,12 @@
     String totalString = await sr.ReadToEndAsync();
     String[] lines = totalString.Replace("\r", "").Split('\n');
 
-    result = "분석시작";
+    status = "분석시작";
     StateHasChanged();
     await Task.Delay(1);
 
-    Dictionary<String, KakaoStat> userStats = new();
-    Dictionary<String, String> latestStatus = new();
+    userStats.Clear();
+    latestStatus.Clear();
 
     // Analyze first line
     String languageMode = "ko";
@@ -59,16 +81,30 @@
         Single percent = 100f * (i + 1) / lines.Length;
         Single elapsedSeconds = (Single)sw.Elapsed.TotalSeconds;
         Int32 remainingSeconds = (Int32)(elapsedSeconds / percent * 100f - elapsedSeconds);
-        result = $"분석중: {i + 1} / {lines.Length} 줄 ({percent.ToString("F2")}%). 남은시간 {remainingSeconds}초";
+        status = $"분석중: {i + 1} / {lines.Length} 줄 ({percent.ToString("F2")}%). 남은시간 {remainingSeconds}초";
         StateHasChanged();
         await Task.Delay(1);
       }
     }
+    PrintResult();
+  }
+
+  private void MinimumConvoFilterChanged(ChangeEventArgs e)
+  {
+    minimumConvo = Int32.Parse((String)e.Value);
+    PrintResult();
+  }
+
+  private void PrintResult()
+  {
+    status = "";
 
     DateTime today = DateTime.Now;
     StringBuilder sb = new StringBuilder();
     sb.AppendLine(ReportForUsers(today, userStats, latestStatus, "활동중"));
+    sb.AppendLine("<br/>");
     sb.AppendLine(ReportForUsers(today, userStats, latestStatus, "나감"));
+    sb.AppendLine("<br/>");
     sb.AppendLine(ReportForUsers(today, userStats, latestStatus, "내보냄"));
 
     result = sb.ToString();
@@ -177,7 +213,7 @@
     StringBuilder sb = new StringBuilder();
     sb.AppendLine($"<h2>{status}</h2>");
     sb.AppendLine("<table style=\"width:100%;text-align: left;border: 1px solid #ddd;\">");
-    sb.Append("<tr>");
+    sb.Append("<tr style=\"background-color: #aaa;\">");
     sb.Append("<th>대화명</th>");
     sb.Append("<th>대화수</th>");
     sb.Append("<th>최근대화시간</th>");
@@ -192,6 +228,8 @@
       {
         String userName = user.Key;
         Int32 convoCount = user.Value.ConversationCount;
+        if (convoCount < minimumConvo)
+          continue;
         DateTime firstConvoTime = user.Value.FirstConversationDateTime;
         DateTime lastConvoTime = user.Value.LastConversationDateTime;
         TimeSpan timeDiffFromToday = today - lastConvoTime;
