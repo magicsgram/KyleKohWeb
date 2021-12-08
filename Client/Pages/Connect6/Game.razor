@@ -39,11 +39,23 @@
                 <td style="border:0px; padding:0px;">
                   @if ((x == lastPlayX && y == lastPlayY) || (x == lastLastPlayX && y == lastLastPlayY))
                   {
-                    <img @onclick="@(e => Play(x, y))" style="border:0px; padding:0px;" src="data:image/png;base64,@visualThemes[currentVisualTheme][Char.ToUpper(boardLineStrings[j][i])]" />
+                    <img
+                      @onmousemove="@(e => OnMouseInOut(x, y, true))"
+                      @onmouseout="@(e => OnMouseInOut(x, y, false))"
+                      @onclick="@(e => Play(x, y))"
+                      style="border:0px; padding:0px;"
+                      src="data:image/png;base64,@visualThemes[currentVisualTheme][Char.ToUpper(boardLineStringsForRender[j][i])]"
+                    />
                   }
                   else
                   {
-                    <img @onclick="@(e => Play(x, y))" style="border:0px; padding:0px;" src="data:image/png;base64,@visualThemes[currentVisualTheme][boardLineStrings[j][i]]" />
+                    <img
+                      @onmousemove="@(e => OnMouseInOut(x, y, true))"
+                      @onmouseout="@(e => OnMouseInOut(x, y, false))"
+                      @onclick="@(e => Play(x, y))"
+                      style="border:0px; padding:0px;"
+                      src="data:image/png;base64,@visualThemes[currentVisualTheme][boardLineStringsForRender[j][i]]"
+                    />
                   }
                 </td>
               }
@@ -77,7 +89,8 @@
   private Int32 cellSize = 35;
   private Single zoomFactor = 1.0f;
   private HubConnection hubConnection;
-  private List<String> boardLineStrings = new List<String>();
+  private List<String> boardLineStrings = new();
+  private List<String> boardLineStringsForRender = new();
   private String connectedUsersMessage;
   private String turnMessage;
   private String serverMessage;
@@ -92,6 +105,8 @@
   private String stoneSound;
   private Boolean shouldPlaySound = true;
   private HashSet<Char> playedStone = new() { 'b', 'B', 'w', 'W' };
+
+    private Dictionary<String, String> currentState = new();
 
   private Dictionary<String, Dictionary<String, String>> stringResource;
 
@@ -126,6 +141,7 @@
 
   private async Task CurrentBoard(Dictionary<String, String> currentState)
   {
+    this.currentState = currentState;
     var tempBoard = currentState["boardString"].Split("\n").ToList();
     lastPlayX = Int32.Parse(currentState["lastPlayX"]);
     lastPlayY = Int32.Parse(currentState["lastPlayY"]);
@@ -146,7 +162,8 @@
       );
 
     Boolean firstTimeRunning = (boardLineStrings.Count == 0);
-    boardLineStrings = tempBoard;
+    boardLineStrings = currentState["boardString"].Split("\n").ToList();;
+    boardLineStringsForRender = currentState["boardString"].Split("\n").ToList(); // Duplicate
 
     if (firstTimeRunning)
       await BrowserHasResized();
@@ -204,6 +221,29 @@
   {
     await hubConnection.StartAsync();
     await hubConnection.SendAsync("InitializeBoardAndConnection", GameId);
+  }
+
+  private void OnMouseInOut(Int32 x, Int32 y, Boolean comingIn)
+  {
+    if (playedStone.Contains(boardLineStringsForRender[y][x]))
+      return;
+
+    Char oldChar = boardLineStringsForRender[y][x];
+    StringBuilder sb = new(boardLineStringsForRender[y]);
+    if (comingIn)
+    {
+      if (currentState["currentTurn"] == "b")
+        sb[x] = 'v';
+      else
+        sb[x] = 'q';
+    }
+    else
+      sb[x] = boardLineStrings[y][x];
+    if (sb[x] != oldChar)
+    {
+      boardLineStringsForRender[y] = sb.ToString();
+      StateHasChanged();
+    }
   }
 
   private Char DetermineWinner(List<String> tempBoard, Int32 lastPlayX, Int32 lastPlayY)
