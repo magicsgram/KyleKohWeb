@@ -225,7 +225,7 @@
 
   private void OnMouseInOut(Int32 x, Int32 y, Boolean comingIn)
   {
-    if (playedStone.Contains(boardLineStringsForRender[y][x]))
+    if (playedStone.Contains(boardLineStringsForRender[y][x]) || winnerChar != 'n')
       return;
 
     Char oldChar = boardLineStringsForRender[y][x];
