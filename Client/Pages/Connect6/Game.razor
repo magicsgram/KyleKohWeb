@@ -1,10 +1,12 @@
 @page "/connect6/game/{GameId}"
+@using Excubo.Blazor.Canvas.Contexts
 @using Microsoft.AspNetCore.SignalR.Client
 @using System
 @using System.Collections.Generic
 @using System.Text
 @using System.Threading
 @using Microsoft.AspNetCore.WebUtilities
+@using Excubo.Blazor.Canvas
 @inject NavigationManager NavigationManager
 @implements IDisposable
 @inject IJSRuntime jsRuntime
@@ -26,45 +28,17 @@
       </div>
       <br />
     }
-    <div style="zoom: @zoomFactor">
-      <table order="0" cellspacing="0" cellpadding="0" style="border:0px; border-collapse:collapse; padding:@(cellSize * 2.5f); font-size:1px; display: inline;">
-        <tbody>
-          @for (Int32 j = 0; j < boardLineStrings.Count; ++j)
-          {
-            <tr style="vertical-align:top; border:0px; padding:0px;">
-              @for (Int32 i = 0; i < boardLineStrings[j].Length; ++i)
-              {
-                var x = i;
-                var y = j;
-                <td style="border:0px; padding:0px;">
-                  @if ((x == lastPlayX && y == lastPlayY) || (x == lastLastPlayX && y == lastLastPlayY))
-                  {
-                    <img
-                      @onmousemove="@(e => OnMouseInOut(x, y, true))"
-                      @onmouseout="@(e => OnMouseInOut(x, y, false))"
-                      @onclick="@(e => Play(x, y))"
-                      style="border:0px; padding:0px;"
-                      src="data:image/png;base64,@visualThemes[currentVisualTheme][Char.ToUpper(boardLineStringsForRender[j][i])]"
-                    />
-                  }
-                  else
-                  {
-                    <img
-                      @onmousemove="@(e => OnMouseInOut(x, y, true))"
-                      @onmouseout="@(e => OnMouseInOut(x, y, false))"
-                      @onclick="@(e => Play(x, y))"
-                      style="border:0px; padding:0px;"
-                      src="data:image/png;base64,@visualThemes[currentVisualTheme][boardLineStringsForRender[j][i]]"
-                    />
-                  }
-                </td>
-              }
-            </tr>
-          }
-        </tbody>
-      </table>
+    <div>
+      <Canvas
+        @ref="boardCanvas"
+        width="665px"
+        height="665px"
+        style="@canvasStyleString"
+        @onclick="@(e => PlayCanvas(e))"
+        @onmousemove="@(e => OnMouseMouveCanvas(e))"
+        @onmouseout="@(e => OnMouseMouveCanvas(e))"
+      />
     </div>
-
     <br />
     <p>
       <button @onclick="Undo" disabled="@(!IsConnected || lastPlayX == -1)">@stringResource[languageCode]["UndoButton"]</button>
@@ -83,6 +57,19 @@
   }
 
   <div>@serverMessage</div>
+</div>
+<div style="display:none;">
+  @foreach (String imageTheme in visualThemes.Keys)
+  {
+    @foreach (Char boardChar in visualThemes[imageTheme].Keys)
+    {
+      <img
+        id="@("boardimage_" + imageTheme + "_" + boardChar)"
+        style="border:0px; padding:0px;"
+        src="data:image/png;base64,@visualThemes[imageTheme][boardChar]"
+      />
+    }
+  }
 </div>
 
 @code {
@@ -105,10 +92,12 @@
   private String stoneSound;
   private Boolean shouldPlaySound = true;
   private HashSet<Char> playedStone = new() { 'b', 'B', 'w', 'W' };
-
-    private Dictionary<String, String> currentState = new();
-
+  private Dictionary<String, String> currentState = new();
   private Dictionary<String, Dictionary<String, String>> stringResource;
+  private Canvas boardCanvas;
+  private Int32 lastMouseMoveBoardX = -1;
+  private Int32 lastMouseMoveBoardY = -1;
+  private String canvasStyleString = "";
 
   [Parameter]
   public String GameId { get; set; }
@@ -162,16 +151,21 @@
       );
 
     Boolean firstTimeRunning = (boardLineStrings.Count == 0);
-    boardLineStrings = currentState["boardString"].Split("\n").ToList();;
-    boardLineStringsForRender = currentState["boardString"].Split("\n").ToList(); // Duplicate
+    boardLineStrings = CurrentStateToStrings();
+    boardLineStringsForRender = CurrentStateToStrings();
 
     if (firstTimeRunning)
+
       await BrowserHasResized();
+
+
     StateHasChanged();
 
     if (shouldPlaySound && !firstTimeRunning)
       if (currentState["soundCue"] == "placeStone")
         await jsRuntime.InvokeVoidAsync("soundPlayer.playStoneSound");
+
+    await DrawWholeCanvasAsync();
   }
 
   private void ServerMessage(String messageString)
@@ -200,10 +194,12 @@
     StateHasChanged();
   }
 
-  private void OnThemeChanged(ChangeEventArgs e)
+  private async Task OnThemeChanged(ChangeEventArgs e)
   {
     currentVisualTheme = e.Value.ToString();
     StateHasChanged();
+
+    await DrawWholeCanvasAsync();
   }
 
   private async Task BrowserHasResized()
@@ -214,6 +210,8 @@
       zoomFactor = newWidth / totalBoardWidth;
     else
       zoomFactor = 1.0f;
+
+    canvasStyleString = $"width: {(Int32)(655 * zoomFactor)}px; height: {(Int32)(655 * zoomFactor)}px;";
     StateHasChanged();
   }
 
@@ -223,28 +221,72 @@
     await hubConnection.SendAsync("InitializeBoardAndConnection", GameId);
   }
 
-  private void OnMouseInOut(Int32 x, Int32 y, Boolean comingIn)
+  private void ConverMouseCoordinateToBoard(MouseEventArgs e, out Int32 boardX, out Int32 boardY)
   {
-    if (playedStone.Contains(boardLineStringsForRender[y][x]) || winnerChar != 'n')
-      return;
-
-    Char oldChar = boardLineStringsForRender[y][x];
-    StringBuilder sb = new(boardLineStringsForRender[y]);
-    if (comingIn)
-    {
-      if (currentState["currentTurn"] == "b")
-        sb[x] = 'v';
-      else
-        sb[x] = 'q';
-    }
-    else
-      sb[x] = boardLineStrings[y][x];
-    if (sb[x] != oldChar)
-    {
-      boardLineStringsForRender[y] = sb.ToString();
-      StateHasChanged();
-    }
+    boardX = (Int32)(e.OffsetX / zoomFactor) / 35;
+    boardY = (Int32)(e.OffsetY / zoomFactor) / 35;
   }
+
+  private async void OnMouseMouveCanvas(MouseEventArgs e)
+  {
+    ConverMouseCoordinateToBoard(e, out Int32 boardX, out Int32 boardY);
+    if (boardX == lastMouseMoveBoardX && boardY == lastMouseMoveBoardY)
+      return;
+    List<String> newBoardLineStringsForRender = CurrentStateToStrings();
+    Int32 upperDimension = newBoardLineStringsForRender.Count;
+    if (
+      0 <= boardX
+      && boardX < upperDimension
+      && 0 <= boardY
+      && boardY < upperDimension
+      && !playedStone.Contains(newBoardLineStringsForRender[boardY][boardX])
+      && winnerChar == 'n'
+    )
+    {
+      StringBuilder sb = new(newBoardLineStringsForRender[boardY]);
+      if (currentState["currentTurn"] == "b")
+        sb[boardX] = 'v';
+      else
+        sb[boardX] = 'q';
+      newBoardLineStringsForRender[boardY] = sb.ToString();
+    }
+    await DrawDiffBoardAndSetAsync(newBoardLineStringsForRender);
+    lastMouseMoveBoardX = boardX;
+    lastMouseMoveBoardY = boardY;
+  }
+
+  private async Task DrawDiffBoardAndSetAsync(List<String> newBoardLineStringsForRender)
+  {
+    await using (Context2D context = await boardCanvas.GetContext2DAsync())
+    {
+      for (Int32 j = 0; j < newBoardLineStringsForRender.Count; ++j)
+        for (Int32 i = 0; i < newBoardLineStringsForRender[j].Length; ++i)
+          if (boardLineStringsForRender[j][i] != newBoardLineStringsForRender[j][i])
+          {
+            if ((i == lastPlayX && j == lastPlayY) || (i == lastLastPlayX && j == lastLastPlayY))
+              await context.DrawImageAsync($"boardimage_{currentVisualTheme}_{Char.ToUpper(newBoardLineStringsForRender[j][i])}", i * 35, j * 35);
+            else
+              await context.DrawImageAsync($"boardimage_{currentVisualTheme}_{newBoardLineStringsForRender[j][i]}", i * 35, j * 35);
+          }
+    }
+    boardLineStringsForRender = newBoardLineStringsForRender;
+  }
+
+  private async Task DrawWholeCanvasAsync()
+  {
+    List<String> newBoardLineStringsForRender = CurrentStateToStrings();
+    boardLineStringsForRender = new();
+    for (Int32 j = 0; j < newBoardLineStringsForRender.Count; ++j)
+    {
+      StringBuilder sb = new();
+      for (Int32 i = 0; i < newBoardLineStringsForRender[j].Length; ++i)
+        sb.Append('-'); // Dummy char to rerendering of whole thing
+      boardLineStringsForRender.Add(sb.ToString());
+    }
+    await DrawDiffBoardAndSetAsync(newBoardLineStringsForRender);
+  }
+
+  private List<String> CurrentStateToStrings() => currentState["boardString"].Split("\n").ToList();
 
   private Char DetermineWinner(List<String> tempBoard, Int32 lastPlayX, Int32 lastPlayY)
   {
@@ -320,12 +362,13 @@
 
   private Boolean IsWithinBoundary(Int32 dimX, Int32 dimY, Int32 x, Int32 y) => 0 <= x && x < dimX && 0 <= y && y < dimY;
 
-  private Task Play(Int32 x, Int32 y)
+  private Task PlayCanvas(MouseEventArgs e)
   {
+    ConverMouseCoordinateToBoard(e, out Int32 boardX, out Int32 boardY);
     if (winnerExist)
       return Task.CompletedTask;
-    else if (!playedStone.Contains(boardLineStrings[y][x]))
-      return hubConnection.SendAsync("PlaceStone", GameId, x, y);
+    else if (!playedStone.Contains(boardLineStrings[boardY][boardX]))
+      return hubConnection.SendAsync("PlaceStone", GameId, boardX, boardY);
     else
       return Task.CompletedTask;
   }

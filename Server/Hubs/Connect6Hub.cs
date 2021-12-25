@@ -70,7 +70,7 @@ namespace KyleKoh.Server.Hubs
       do
       {
         Guid g = Guid.NewGuid();
-        newGameId = g.ToString().Substring(0, 8);
+        newGameId = g.ToString()[..8];
       } while (gameSessionCollection.FindOne(x => x.GameId == newGameId) != null);
 
       GameSession newGameSession = new(newGameId);

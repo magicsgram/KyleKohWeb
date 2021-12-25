@@ -53,17 +53,17 @@ namespace KyleKoh.Server.Hubs
       EmptyBoard[BoardSize - 1][0] = '1';
       EmptyBoard[BoardSize - 1][BoardSize - 1] = '3';
       // Left dots
-      EmptyBoard[3][3] = '+';
-      EmptyBoard[BoardSize / 2][3] = '+';
-      EmptyBoard[BoardSize - 4][3] = '+';
+      EmptyBoard[3][3] = 'c';
+      EmptyBoard[BoardSize / 2][3] = 'c';
+      EmptyBoard[BoardSize - 4][3] = 'c';
       // Center dots
-      EmptyBoard[3][BoardSize / 2] = '+';
-      EmptyBoard[BoardSize / 2][BoardSize / 2] = '+';
-      EmptyBoard[BoardSize - 4][BoardSize / 2] = '+';
+      EmptyBoard[3][BoardSize / 2] = 'c';
+      EmptyBoard[BoardSize / 2][BoardSize / 2] = 'c';
+      EmptyBoard[BoardSize - 4][BoardSize / 2] = 'c';
       // Right dots
-      EmptyBoard[3][BoardSize - 4] = '+';
-      EmptyBoard[BoardSize / 2][BoardSize - 4] = '+';
-      EmptyBoard[BoardSize - 4][BoardSize - 4] = '+';
+      EmptyBoard[3][BoardSize - 4] = 'c';
+      EmptyBoard[BoardSize / 2][BoardSize - 4] = 'c';
+      EmptyBoard[BoardSize - 4][BoardSize - 4] = 'c';
 
       ResetBoard();
     }
