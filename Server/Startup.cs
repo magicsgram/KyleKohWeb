@@ -55,7 +55,7 @@ namespace KyleKoh.Server
       {
         endpoints.MapRazorPages();
         endpoints.MapControllers();
-        endpoints.MapHub<Connect6Hub>("/connect6hub");
+        endpoints.MapHub<Connect6Hub>("/Connect6Hub");
         endpoints.MapFallbackToFile("index.html");
       });
     }

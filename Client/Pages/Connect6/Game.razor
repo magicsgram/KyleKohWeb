@@ -98,6 +98,7 @@
   private Int32 lastMouseMoveBoardX = -1;
   private Int32 lastMouseMoveBoardY = -1;
   private String canvasStyleString = "";
+  private String serverUrl = "";
 
   [Parameter]
   public String GameId { get; set; }
@@ -111,7 +112,7 @@
     await jsRuntime.InvokeVoidAsync("browserResize.registerResizeCallback");
 
     hubConnection = new HubConnectionBuilder()
-      .WithUrl(NavigationManager.ToAbsoluteUri("/connect6hub"))
+      .WithUrl(NavigationManager.ToAbsoluteUri("/Connect6Hub"))
       .Build();
 
     hubConnection.KeepAliveInterval = TimeSpan.FromSeconds(60);
@@ -120,6 +121,7 @@
     hubConnection.On<String>("ServerMessage", (messageString) => ServerMessage(messageString));
     hubConnection.On<String>("NoGameFound", (messageString) => NoGameFound(messageString));
     hubConnection.On<Int32>("ConnectionSize", (connectionSize) => ConnectionSize(connectionSize));
+    hubConnection.On<String>("ServerUrl", (serverUrl) => { this.serverUrl = serverUrl; });
 
     hubConnection.Closed += async (e) => await OnClosed(e);
 
@@ -377,7 +379,7 @@
 
   Task NewGame() => hubConnection.SendAsync("NewGame", GameId);
 
-  private String connectionUrl => $"https://kyler.ddnsfree.com/{NavigationManager.ToBaseRelativePath(NavigationManager.Uri)}";
+  private String connectionUrl => $"{serverUrl}{NavigationManager.ToBaseRelativePath(NavigationManager.Uri)}";
 
   private Boolean winnerExist => winnerChar != 'n';
 

@@ -21,7 +21,7 @@
   protected override async Task OnInitializedAsync()
   {
       hubConnection = new HubConnectionBuilder()
-        .WithUrl(NavigationManager.ToAbsoluteUri("/connect6hub"))
+        .WithUrl(NavigationManager.ToAbsoluteUri("/Connect6Hub"))
         .Build();
 
       hubConnection.On<List<String>>("ServerLogReceived", (serverLogs) => ServerLogReceived(serverLogs));

@@ -11,24 +11,34 @@ namespace KyleKoh.Server.Hubs
   {
     static Boolean initialized = false;
 
-    static Dictionary<String, HashSet<String>> connections;
-    static Dictionary<String, String> reverseMapping;
+    static Dictionary<String, HashSet<String>> gameIdsToConnectionIds;
+    static Dictionary<String, String> connectionIdsToGameIds;
     static Queue<String> serverLogsQueue;
     static LiteDB.LiteDatabase liteDatabase;
     static LiteDB.ILiteCollection<GameSession> gameSessionCollection;
     static LiteDB.ILiteCollection<SessionStat> sessionStatsCollection;
     static SessionStat sessionStat;
+    static String serverUrl = "***ADD SERVER URL FILE***";
 
     public Connect6Hub() : base()
     {
       if (!initialized)
       {
-        connections = new();
-        reverseMapping = new();
+        gameIdsToConnectionIds = new();
+        connectionIdsToGameIds = new();
         serverLogsQueue = new();
 
         String dbPath = Path.Combine(Directory.GetParent(".").FullName, "gamedb.db");
         liteDatabase = new LiteDB.LiteDatabase($"Filename = {dbPath};");
+
+        String serverUrlFilePath = Path.Combine(Directory.GetParent(".").FullName, "server-url.txt");
+        FileInfo serverUrlFileInfo = new(serverUrlFilePath);
+        if (serverUrlFileInfo.Exists)
+        {
+          StreamReader serverUrlFileReader = new(serverUrlFilePath);
+          serverUrl = serverUrlFileReader.ReadLine().Trim();
+          serverUrlFileReader.Close();
+        }
 
         sessionStatsCollection = liteDatabase.GetCollection<SessionStat>("SessionStats");
         if (sessionStatsCollection.Count() == 0)
@@ -54,7 +64,7 @@ namespace KyleKoh.Server.Hubs
       DateTime cutoffTime = DateTime.Now - TimeSpan.FromDays(365);
       List<GameSession> oldGameSessions = gameSessionCollection.Find(x => x.SessionUpdatedAt < cutoffTime).ToList();
       HashSet<String> gameIdsToRemove = oldGameSessions.Select(x => x.GameId).ToHashSet();
-      foreach (var zeroConnection in connections.Where(x => x.Value.Count == 0))
+      foreach (var zeroConnection in gameIdsToConnectionIds.Where(x => x.Value.Count == 0))
         if (!gameIdsToRemove.Contains(zeroConnection.Key))
           gameIdsToRemove.Add(zeroConnection.Key);
 
@@ -75,7 +85,7 @@ namespace KyleKoh.Server.Hubs
 
       GameSession newGameSession = new(newGameId);
       gameSessionCollection.Insert(newGameSession);
-      connections.Add(newGameId, new HashSet<String>());
+      gameIdsToConnectionIds.Add(newGameId, new HashSet<String>());
       ++sessionStat.TotalSessions;
       sessionStatsCollection.Update(sessionStat);
 
@@ -85,10 +95,10 @@ namespace KyleKoh.Server.Hubs
 
     private static void RemoveGameIdFromConnection(string gameIdToRemove)
     {
-      connections.Remove(gameIdToRemove);
-      foreach (var keyValuePair in reverseMapping.ToList())
+      gameIdsToConnectionIds.Remove(gameIdToRemove);
+      foreach (var keyValuePair in connectionIdsToGameIds.ToList())
         if (keyValuePair.Value == gameIdToRemove)
-          reverseMapping.Remove(keyValuePair.Key);
+          connectionIdsToGameIds.Remove(keyValuePair.Key);
     }
 
     private static void CleanDB()
@@ -105,16 +115,17 @@ namespace KyleKoh.Server.Hubs
         return;
 
       await Groups.AddToGroupAsync(Context.ConnectionId, currentGameSession.GameId);
-      connections.TryAdd(currentGameSession.GameId, new());
-      if (!connections[currentGameSession.GameId].Contains(Context.ConnectionId))
+      gameIdsToConnectionIds.TryAdd(currentGameSession.GameId, new());
+      if (!gameIdsToConnectionIds[currentGameSession.GameId].Contains(Context.ConnectionId))
       {
-        connections[currentGameSession.GameId].Add(Context.ConnectionId);
-        reverseMapping.Add(Context.ConnectionId, currentGameSession.GameId);
+        gameIdsToConnectionIds[currentGameSession.GameId].Add(Context.ConnectionId);
+        connectionIdsToGameIds.Add(Context.ConnectionId, currentGameSession.GameId);
       }
+      await Clients.Caller.SendAsync("ServerUrl", serverUrl);
       await SendCurrentStateAsync(currentGameSession);
       await SendConnectionSize(currentGameSession.GameId);
       ++sessionStat.TotalConnections;
-      if (connections[currentGameSession.GameId].Count == 2)
+      if (gameIdsToConnectionIds[currentGameSession.GameId].Count == 2)
         ++sessionStat.TotalMultiplayerGame;
       sessionStatsCollection.Update(sessionStat);
       await Report(currentGameSession.GameId, "New user connected to game");
@@ -221,19 +232,19 @@ namespace KyleKoh.Server.Hubs
       await Clients.Group(gameSession.GameId).SendAsync("CurrentBoard", state);
     }
 
-    private async Task SendConnectionSize(String gameId) => await Clients.Group(gameId).SendAsync("ConnectionSize", connections[gameId].Count);
+    private async Task SendConnectionSize(String gameId) => await Clients.Group(gameId).SendAsync("ConnectionSize", gameIdsToConnectionIds[gameId].Count);
 
     public async override Task OnDisconnectedAsync(Exception exception)
     {
-      if (reverseMapping.ContainsKey(Context.ConnectionId))
+      if (connectionIdsToGameIds.ContainsKey(Context.ConnectionId))
       {
         try
         {
-          String gameId = reverseMapping[Context.ConnectionId];
-          reverseMapping.Remove(Context.ConnectionId);
-          connections[gameId].Remove(Context.ConnectionId);
-          if (connections[gameId].Count == 0)
-            connections.Remove(gameId);
+          String gameId = connectionIdsToGameIds[Context.ConnectionId];
+          connectionIdsToGameIds.Remove(Context.ConnectionId);
+          gameIdsToConnectionIds[gameId].Remove(Context.ConnectionId);
+          if (gameIdsToConnectionIds[gameId].Count == 0)
+            gameIdsToConnectionIds.Remove(gameId);
 
           await SendConnectionSize(gameId);
           await Report(gameId, "User disconnected");
@@ -246,7 +257,7 @@ namespace KyleKoh.Server.Hubs
     {
       if (gameId.Length > 0 && message.Length > 0)
       {
-        String reportMessage = $"{DateTime.Now} [{sessionStat.TotalSessions} TS, {sessionStat.TotalConnections} TU, {sessionStat.TotalMultiplayerGame} MUS, {gameSessionCollection.Query().Count()} CS, {reverseMapping.Count} CU] {gameId} ({connections[gameId].Count}) : {message,-30}{Context.ConnectionId}";
+        String reportMessage = $"{DateTime.Now} [{sessionStat.TotalSessions} TS, {sessionStat.TotalConnections} TU, {sessionStat.TotalMultiplayerGame} MUS, {gameSessionCollection.Query().Count()} CS, {connectionIdsToGameIds.Count} CU] {gameId} ({gameIdsToConnectionIds[gameId].Count}) : {message,-30}{Context.ConnectionId}";
         while (serverLogsQueue.Count > 30)
           serverLogsQueue.Dequeue();
         serverLogsQueue.Enqueue(reportMessage);

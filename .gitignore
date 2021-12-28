@@ -6,6 +6,7 @@ Shared/bin/
 Shared/obj/
 gamedb.db
 gamedb-log.db
+server-url.txt
 tempconn.tar.xz
 webpublish/
 .vs/
