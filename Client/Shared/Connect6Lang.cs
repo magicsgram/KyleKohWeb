@@ -28,8 +28,14 @@ namespace KyleKoh.Client.Shared
       stringResource["en-us"].Add("CopyLinkInstruction", "Copy the link below and share with others to play together.");
       stringResource["ko-kr"].Add("CopyLinkInstruction", "아래 링크를 복사해 다른 사람과 공유하면 함께 플레이 하실 수 있습니다.");
 
+      stringResource["en-us"].Add("NewGameInstruction", "You can go to {0} to create a new game.");
+      stringResource["ko-kr"].Add("NewGameInstruction", "{0} 으로 가시면 새 게임을 만들 수 있습니다.");
+
       stringResource["en-us"].Add("NewGameButton", "Play new game with current users");
       stringResource["ko-kr"].Add("NewGameButton", "현 유저들과 새 게임 시작하기");
+
+      stringResource["en-us"].Add("NewGameConfirmation", "Are you sure you want to start a new game with current users?");
+      stringResource["ko-kr"].Add("NewGameConfirmation", "현 유저들과 새로운 게임을 시작하고 싶으신가요?");
 
       stringResource["en-us"].Add("UndoButton", "Undo");
       stringResource["ko-kr"].Add("UndoButton", "되감기");

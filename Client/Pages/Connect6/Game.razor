@@ -42,6 +42,7 @@
     <br />
     <p>
       <button @onclick="Undo" disabled="@(!IsConnected || lastPlayX == -1)">@stringResource[languageCode]["UndoButton"]</button>
+      <button @onclick="NewGame" disabled="@(!IsConnected || lastPlayX == -1)">@stringResource[languageCode]["NewGameButton"]</button>
     </p>
     <p>
       <select class="form-control selectpicker" @onchange="OnThemeChanged">
@@ -53,6 +54,9 @@
       <input type="checkbox" @bind="shouldPlaySound" /> @stringResource[languageCode]["PlayStoneSound"]
     </p>
     <hr>
+    <div>
+      @NewGameInstruction()
+    </div>
     <div>@stringResource[languageCode]["ExpirationMessage"]</div>
   }
 
@@ -122,6 +126,7 @@
     hubConnection.On<String>("NoGameFound", (messageString) => NoGameFound(messageString));
     hubConnection.On<Int32>("ConnectionSize", (connectionSize) => ConnectionSize(connectionSize));
     hubConnection.On<String>("ServerUrl", (serverUrl) => { this.serverUrl = serverUrl; });
+    hubConnection.On<String>("NewGameIdReceived", (gameId) => NavigationManager.NavigateTo($"connect6/game/{gameId}?lang={languageCode}", true));
 
     hubConnection.Closed += async (e) => await OnClosed(e);
 
@@ -375,11 +380,26 @@
       return Task.CompletedTask;
   }
 
-  Task Undo() => hubConnection.SendAsync("UndoStone", GameId);
+  async Task Undo() => await hubConnection.SendAsync("UndoStone", GameId);
 
-  Task NewGame() => hubConnection.SendAsync("NewGame", GameId);
+  async Task NewGame()
+  {
+    if (!await jsRuntime.InvokeAsync<Boolean>("confirm", stringResource[languageCode]["NewGameConfirmation"]))
+      return;
+    await hubConnection.SendAsync("NewGame", GameId);
+  }
 
   private String connectionUrl => $"{serverUrl}{NavigationManager.ToBaseRelativePath(NavigationManager.Uri)}";
+
+  private MarkupString NewGameInstruction()
+  {
+    String message = String.Format(
+      stringResource[languageCode]["NewGameInstruction"],
+      $"<a href=\"{serverUrl}connect6/\">{serverUrl}connect6/</a>"
+    );
+    return (MarkupString)message;
+  }
+
 
   private Boolean winnerExist => winnerChar != 'n';
 

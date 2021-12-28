@@ -61,6 +61,13 @@ namespace KyleKoh.Server.Hubs
 
     public async Task CreateNewGame()
     {
+      String newGameId = CreateNewGameSession();
+      await Clients.Caller.SendAsync("NewGameIdReceived", newGameId);
+      await Report(newGameId, "New game made");
+    }
+
+    private static String CreateNewGameSession()
+    {
       DateTime cutoffTime = DateTime.Now - TimeSpan.FromDays(365);
       List<GameSession> oldGameSessions = gameSessionCollection.Find(x => x.SessionUpdatedAt < cutoffTime).ToList();
       HashSet<String> gameIdsToRemove = oldGameSessions.Select(x => x.GameId).ToHashSet();
@@ -88,9 +95,7 @@ namespace KyleKoh.Server.Hubs
       gameIdsToConnectionIds.Add(newGameId, new HashSet<String>());
       ++sessionStat.TotalSessions;
       sessionStatsCollection.Update(sessionStat);
-
-      await Clients.Caller.SendAsync("NewGameIdReceived", newGameId);
-      await Report(newGameId, "New game made");
+      return newGameId;
     }
 
     private static void RemoveGameIdFromConnection(string gameIdToRemove)
@@ -177,10 +182,10 @@ namespace KyleKoh.Server.Hubs
       GameSession currentGameSession = await FindGameAndHandleNoGameFound(gameId);
       if (currentGameSession == null)
         return;
-      currentGameSession.ResetBoard();
-      gameSessionCollection.Update(currentGameSession);
-      await SendCurrentStateAsync(currentGameSession);
-      await Report(currentGameSession.GameId, "Board reset");
+
+      String newGameId = CreateNewGameSession();
+      await Clients.Group(gameId).SendAsync("NewGameIdReceived", newGameId);
+      await Report(newGameId, "New game made with current users.");
     }
 
     private async Task SendCurrentStateAsync(GameSession gameSession, String soundCue = "")
