@@ -115,7 +115,27 @@
     BrowserResizeService.OnResize += BrowserHasResized;
     await jsRuntime.InvokeVoidAsync("browserResize.registerResizeCallback");
 
-    hubConnection = new HubConnectionBuilder()
+    try {
+      await hubConnection.DisposeAsync();
+    } catch {}
+    hubConnection = BuildConnection();
+    await InitializeConnection();
+  }
+
+  protected override async Task OnParametersSetAsync()
+  {
+    try {
+      await hubConnection.DisposeAsync();
+    } catch {}
+    hubConnection = BuildConnection();
+    await  InitializeConnection();
+  }
+
+  #region Received Event
+
+  private HubConnection BuildConnection()
+  {
+    HubConnection hubConnection = new HubConnectionBuilder()
       .WithUrl(NavigationManager.ToAbsoluteUri("/Connect6Hub"))
       .Build();
 
@@ -126,14 +146,17 @@
     hubConnection.On<String>("NoGameFound", (messageString) => NoGameFound(messageString));
     hubConnection.On<Int32>("ConnectionSize", (connectionSize) => ConnectionSize(connectionSize));
     hubConnection.On<String>("ServerUrl", (serverUrl) => { this.serverUrl = serverUrl; });
-    hubConnection.On<String>("NewGameIdReceived", (gameId) => NavigationManager.NavigateTo($"connect6/game/{gameId}?lang={languageCode}", true));
+    hubConnection.On<String>("NewGameIdReceived", (newGameId) => NewGameIdReceived(newGameId));
 
     hubConnection.Closed += async (e) => await OnClosed(e);
 
-    await InitializeConnection();
+    return hubConnection;
   }
 
-  #region Received Event
+  private void NewGameIdReceived(String newGameId)
+  {
+    NavigationManager.NavigateTo($"connect6/game/{newGameId}?lang={languageCode}");
+  }
 
   private async Task CurrentBoard(Dictionary<String, String> currentState)
   {
