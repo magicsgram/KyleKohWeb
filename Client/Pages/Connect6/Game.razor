@@ -54,13 +54,11 @@
       <input type="checkbox" @bind="shouldPlaySound" /> @stringResource[languageCode]["PlayStoneSound"]
     </p>
     <hr>
-    <div>
-      @NewGameInstruction()
-    </div>
+
     <div>@stringResource[languageCode]["ExpirationMessage"]</div>
   }
-
   <div>@serverMessage</div>
+  <div>@NewGameInstruction()</div>
 </div>
 <div style="display:none;">
   @foreach (String imageTheme in visualThemes.Keys)
@@ -114,28 +112,23 @@
     SetStoneSound();
     BrowserResizeService.OnResize += BrowserHasResized;
     await jsRuntime.InvokeVoidAsync("browserResize.registerResizeCallback");
-
-    try {
-      await hubConnection.DisposeAsync();
-    } catch {}
-    hubConnection = BuildConnection();
-    await InitializeConnection();
   }
 
   protected override async Task OnParametersSetAsync()
   {
-    try {
-      await hubConnection.DisposeAsync();
-    } catch {}
-    hubConnection = BuildConnection();
-    await  InitializeConnection();
+    await BuildConnection();
+    await InitializeConnection();
   }
 
   #region Received Event
 
-  private HubConnection BuildConnection()
+  private async Task BuildConnection()
   {
-    HubConnection hubConnection = new HubConnectionBuilder()
+    try {
+      await hubConnection.DisposeAsync();
+    } catch {}
+
+    hubConnection = new HubConnectionBuilder()
       .WithUrl(NavigationManager.ToAbsoluteUri("/Connect6Hub"))
       .Build();
 
@@ -149,14 +142,9 @@
     hubConnection.On<String>("NewGameIdReceived", (newGameId) => NewGameIdReceived(newGameId));
 
     hubConnection.Closed += async (e) => await OnClosed(e);
-
-    return hubConnection;
   }
 
-  private void NewGameIdReceived(String newGameId)
-  {
-    NavigationManager.NavigateTo($"connect6/game/{newGameId}?lang={languageCode}");
-  }
+  private void NewGameIdReceived(String newGameId) => NavigationManager.NavigateTo($"connect6/game/{newGameId}?lang={languageCode}");
 
   private async Task CurrentBoard(Dictionary<String, String> currentState)
   {
@@ -182,12 +170,6 @@
 
     Boolean firstTimeRunning = (boardLineStrings.Count == 0);
     boardLineStrings = CurrentStateToStrings();
-    boardLineStringsForRender = CurrentStateToStrings();
-
-    if (firstTimeRunning)
-
-      await BrowserHasResized();
-
 
     StateHasChanged();
 
@@ -195,7 +177,15 @@
       if (currentState["soundCue"] == "placeStone")
         await jsRuntime.InvokeVoidAsync("soundPlayer.playStoneSound");
 
-    await DrawWholeCanvasAsync();
+    if (firstTimeRunning)
+    {
+      await BrowserHasResized();
+      await DrawWholeCanvasAsync();
+    }
+    else
+    {
+      await DrawDiffBoardAndSetAsync(CurrentStateToStrings());
+    }    
   }
 
   private void ServerMessage(String messageString)
@@ -287,17 +277,48 @@
 
   private async Task DrawDiffBoardAndSetAsync(List<String> newBoardLineStringsForRender)
   {
+    List<(Int32 X, Int32 Y)> cellsToUpdate = new();
+    for (Int32 j = 0; j < newBoardLineStringsForRender.Count; ++j)
+      for (Int32 i = 0; i < newBoardLineStringsForRender[j].Length; ++i)
+        if (boardLineStringsForRender[j][i] != newBoardLineStringsForRender[j][i])
+        {
+          Boolean padLeft = i > 0;
+          Boolean padRight = i < newBoardLineStringsForRender[j].Length - 1;
+          Boolean padTop = j > 0;
+          Boolean padBottom = j < newBoardLineStringsForRender.Count - 1;
+
+          if (padTop)
+          {
+            cellsToUpdate.Add((i, j - 1));
+            if (padLeft)
+              cellsToUpdate.Add((i - 1, j - 1));
+            if (padRight)
+              cellsToUpdate.Add((i + 1, j - 1));
+          }
+          cellsToUpdate.Add((i, j));
+          if (padLeft)
+            cellsToUpdate.Add((i - 1, j));
+          if (padRight)
+            cellsToUpdate.Add((i + 1, j));
+          if (padBottom)
+          {
+            cellsToUpdate.Add((i, j + 1));
+            if (padLeft)
+              cellsToUpdate.Add((i - 1, j + 1));
+            if (padRight)
+              cellsToUpdate.Add((i + 1, j + 1));
+          }
+        }
     await using (Context2D context = await boardCanvas.GetContext2DAsync())
     {
-      for (Int32 j = 0; j < newBoardLineStringsForRender.Count; ++j)
-        for (Int32 i = 0; i < newBoardLineStringsForRender[j].Length; ++i)
-          if (boardLineStringsForRender[j][i] != newBoardLineStringsForRender[j][i])
-          {
-            if ((i == lastPlayX && j == lastPlayY) || (i == lastLastPlayX && j == lastLastPlayY))
-              await context.DrawImageAsync($"boardimage_{currentVisualTheme}_{Char.ToUpper(newBoardLineStringsForRender[j][i])}", i * 35, j * 35);
-            else
-              await context.DrawImageAsync($"boardimage_{currentVisualTheme}_{newBoardLineStringsForRender[j][i]}", i * 35, j * 35);
-          }
+      foreach(var cell in cellsToUpdate.Select(cell => cell).AsParallel().Distinct())
+      {
+        String boardImageName
+          = (cell.X == lastPlayX && cell.Y == lastPlayY) || (cell.X == lastLastPlayX && cell.Y == lastLastPlayY) ?
+            $"boardimage_{currentVisualTheme}_{Char.ToUpper(newBoardLineStringsForRender[cell.Y][cell.X])}"
+            : $"boardimage_{currentVisualTheme}_{newBoardLineStringsForRender[cell.Y][cell.X]}";
+        await context.DrawImageAsync(boardImageName, cell.X * 35, cell.Y * 35);
+      }
     }
     boardLineStringsForRender = newBoardLineStringsForRender;
   }

@@ -115,6 +115,7 @@ namespace KyleKoh.Server.Hubs
 
     public async Task InitializeBoardAndConnection(String gameId)
     {
+      await Clients.Caller.SendAsync("ServerUrl", serverUrl);
       GameSession currentGameSession = await FindGameAndHandleNoGameFound(gameId);
       if (currentGameSession == null)
         return;
@@ -126,7 +127,6 @@ namespace KyleKoh.Server.Hubs
         gameIdsToConnectionIds[currentGameSession.GameId].Add(Context.ConnectionId);
         connectionIdsToGameIds.Add(Context.ConnectionId, currentGameSession.GameId);
       }
-      await Clients.Caller.SendAsync("ServerUrl", serverUrl);
       await SendCurrentStateAsync(currentGameSession);
       await SendConnectionSize(currentGameSession.GameId);
       ++sessionStat.TotalConnections;
@@ -161,6 +161,7 @@ namespace KyleKoh.Server.Hubs
       if (currentGameSession == null)
       {
         await Clients.Caller.SendAsync("NoGameFound", "");
+        await Clients.Caller.SendAsync("NoGameFound", "");
         return null;
       }
       return currentGameSession;
@@ -183,9 +184,11 @@ namespace KyleKoh.Server.Hubs
       if (currentGameSession == null)
         return;
 
-      String newGameId = CreateNewGameSession();
-      await Clients.Group(gameId).SendAsync("NewGameIdReceived", newGameId);
-      await Report(newGameId, "New game made with current users.");
+      currentGameSession.ResetBoard();
+      gameSessionCollection.Update(currentGameSession);
+
+      await SendCurrentStateAsync(currentGameSession);
+      await Report(gameId, "New game made with current users.");
     }
 
     private async Task SendCurrentStateAsync(GameSession gameSession, String soundCue = "")
