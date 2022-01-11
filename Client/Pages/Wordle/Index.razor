@@ -80,78 +80,105 @@
       if (inputText.Length > 0)
       {
         wordsFull = wordsFull.OrderBy((x) => random.Next()).ToList();
-        List<String> candidateWords = wordsFull.ToList();
-        List<String> suggestionWords = wordsFull.ToList();
-        Boolean atLeastOneProcess = false;
+        var candidateWords = wordsFull.ToList().Select((word) => word);
+        var suggestionWords = wordsFull.ToList().Select((word) => word);
+        
+        Dictionary<String, List<(Int32 i, Char c, Char p)>> inputWordsDict = new();
         foreach (String filterPattern in inputText.Split('\n'))
         {
           String[] parsed = filterPattern.Trim().ToLower().Split(' ');
           if (parsed.Length != 2)
-            continue;
-          String inputWord = parsed[0];
+          {
+            inputWordsDict.Clear();
+            break;
+          }
+          String inputWord = parsed[0].ToLower();
           String pattern = parsed[1];
           if (inputWord.Length != pattern.Length)
-            continue;
-
-          atLeastOneProcess = true;
-          var itemWithIndex = pattern.ToLower().Select((c, i) => (c, i)).ToList();
-          foreach (var (c, i) in itemWithIndex)
           {
-            if (c == '0')
+            inputWordsDict.Clear();
+            break;
+          }
+
+          List<(Int32 i, Char c, Char p)> newTuples = new();
+          for (Int32 i = 0; i < inputWord.Length; ++i)
+            newTuples.Add((i, inputWord[i], pattern[i]));
+          inputWordsDict.Add(inputWord, newTuples);
+        }
+        foreach (var inputWordKVPair in inputWordsDict)
+        {
+          String inputWord = inputWordKVPair.Key;
+          List<(Int32 i, Char c, Char p)> tuples = inputWordKVPair.Value;
+          foreach (Char c in "abcdefghijklmnopqrstuvwxyz")
+          {
+            if (!inputWord.Contains(c))
+              continue;
+            
+            Int32 grayCount = tuples.Count((tuple) => tuple.c == c && tuple.p == '0');
+            Int32 yellowCount = tuples.Count((tuple) => tuple.c == c && tuple.p == '1');
+            Int32 greenCount = tuples.Count((tuple) => tuple.c == c && tuple.p == '2');
+
+            foreach (var tuple in tuples)
             {
-              Char banChar = inputWord[i];
-              candidateWords
-                = (from word in candidateWords
-                   where !word.Contains(banChar)
-                   select word).ToList();
-              suggestionWords
-                = (from word in suggestionWords
-                   where !word.Contains(banChar)
-                   select word).ToList();
+              switch (tuple.p)
+              {
+                case '2':
+                  candidateWords
+                    = (from word in candidateWords
+                      where word[tuple.i] == tuple.c
+                      select word);
+                  suggestionWords
+                    = (from word in suggestionWords
+                      where !word.Contains(tuple.c)
+                      select word);
+                  break;
+                case '1':
+                  candidateWords
+                    = (from word in candidateWords
+                      where word[tuple.i] != tuple.c
+                      select word);
+                  suggestionWords
+                    = (from word in suggestionWords
+                      where !word.Contains(tuple.c)
+                      select word);
+                  break;
+                case '0':
+                  suggestionWords
+                    = (from word in suggestionWords
+                      where !word.Contains(tuple.c)
+                      select word);
+                  break;
+              }
             }
-            else if (c == '1')
+
+            if (yellowCount == 0 && greenCount == 0)
             {
-              Char allowChar = inputWord[i];
               candidateWords
                 = (from word in candidateWords
-                   where word.Contains(allowChar)
-                   select word).ToList();
-              candidateWords
-                = (from word in candidateWords
-                   where word[i] != allowChar
-                   select word).ToList();
-              suggestionWords
-                = (from word in suggestionWords
-                   where !word.Contains(allowChar)
-                   select word).ToList();
+                    where !word.Contains(c)
+                    select word);
             }
-            else if (c == '2')
+            else
             {
-              Char allowChar = inputWord[i];
               candidateWords
-                = (from word in candidateWords
-                   where word[i] == allowChar
-                   select word).ToList();
-              suggestionWords
-                = (from word in suggestionWords
-                   where !word.Contains(allowChar)
-                   select word).ToList();
-            }
+              = (from word in candidateWords
+                  where word.Count((wc) => wc == c) >= greenCount + yellowCount
+                  select word);
+            }            
           }
         }
-        if (atLeastOneProcess)
+        if (inputWordsDict.Count > 0)
         {
-          candidateWords = SortBasedOnDupPoint(candidateWords);
-          candidates = String.Join("\n", candidateWords);
+          List<String> filteredWords = SortBasedOnDupPoint(candidateWords);
+          candidates = String.Join("\n", filteredWords);
 
-          suggestionWords = SortBasedOnDupPoint(suggestionWords);
-          suggestions = String.Join("\n", suggestionWords);
+          filteredWords = SortBasedOnDupPoint(suggestionWords);
+          suggestions = String.Join("\n", filteredWords);
         }
       } else
       {
         wordsFull = wordsFull.OrderBy((x) => random.Next()).ToList();
-        List<String> filteredWords = wordsFull.ToList();
-        filteredWords = SortBasedOnDupPoint(filteredWords);
+        List<String> filteredWords = SortBasedOnDupPoint(wordsFull);
         candidates = suggestions = String.Join("\n", filteredWords);
       }
       StateHasChanged();
@@ -162,7 +189,7 @@
     }
   }
 
-  private static List<String> SortBasedOnDupPoint(List<String> wordsList)
+  private static List<String> SortBasedOnDupPoint(IEnumerable<String> wordsList)
   {
     List<(String word, Int32 dupPoint)> points = new();
     foreach (String word in wordsList)
