@@ -1,0 +1,178 @@
+﻿@page "/wordle"
+@using Microsoft.AspNetCore.SignalR.Client
+@using System
+@using System.Collections.Generic
+@using System.Text
+@using System.Threading
+@using Microsoft.AspNetCore.WebUtilities
+@inject NavigationManager NavigationManager
+
+<body>
+  <div>
+      Pattern: <i>WORD FILTER</i>. Example: <i>FLANK 00102</i> means<br/>
+      - 0: The word does not contain F, L, or N anywhere. (Dark Grey Blocks)<br/>
+      - 1: The word contains A somewhere, but not in the middle. (Yellow Blocks)<br/>
+      - 2: The word contains K at the end. (Green Blocks)
+  </div>
+  
+  <label>Pattern: </label><br/>
+  <textarea @bind="InputText" @bind:event="oninput" style="font-family: Courier;" rows="8" cols="30" />
+
+  <hr>
+  <table style="border: 1px solid grey;">
+    <tr valign="top">
+      <th style="border: 1px solid grey;">Candidates</th>
+      <th style="border: 1px solid grey;">Suggestions</th>
+    </tr>
+    <tr valign="top">
+      <td style="border: 1px solid grey;"><pre>@candidates</pre></td>
+      <td style="border: 1px solid grey;"><pre>@suggestions</pre></td>
+    </tr>
+  </table>
+  
+</body>
+
+
+@code {
+  private HubConnection hubConnection;
+  private List<String> wordsFull = new();
+  private Random random = new();
+
+  private String candidates = "";
+  private String suggestions = "";
+
+  private String inputText = "";
+  private String InputText
+  {
+    get => inputText;
+    set
+    {
+      inputText = value;
+      RefreshWords();
+    }
+  }
+
+  protected override async Task OnInitializedAsync()
+  {
+    hubConnection = new HubConnectionBuilder()
+      .WithUrl(NavigationManager.ToAbsoluteUri("/WordleHub"))
+      .Build();
+    hubConnection.On<String>("WordsFullString", (wordsFullString) => WordsFullReceived(wordsFullString));
+
+    await hubConnection.StartAsync();
+    await hubConnection.SendAsync("GetWordsFull");
+  }
+
+  private async Task WordsFullReceived(String wordsFullString)
+  {
+    foreach (String word in wordsFullString.Replace("\r", "").Split('\n'))
+      wordsFull.Add(word.ToLower());
+    await hubConnection.DisposeAsync();
+    wordsFull = wordsFull.OrderBy((x) => random.Next()).ToList();
+    candidates = suggestions = String.Join("\n", wordsFull);
+    StateHasChanged();
+  }
+
+  private void RefreshWords()
+  {
+    try
+    {
+      if (inputText.Length > 0)
+      {
+        wordsFull = wordsFull.OrderBy((x) => random.Next()).ToList();
+        List<String> candidateWords = wordsFull.ToList();
+        List<String> suggestionWords = wordsFull.ToList();
+        Boolean atLeastOneProcess = false;
+        foreach (String filterPattern in inputText.Split('\n'))
+        {
+          String[] parsed = filterPattern.Trim().ToLower().Split(' ');
+          if (parsed.Length != 2)
+            continue;
+          String inputWord = parsed[0];
+          String pattern = parsed[1];
+          if (inputWord.Length != pattern.Length)
+            continue;
+
+          atLeastOneProcess = true;
+          var itemWithIndex = pattern.ToLower().Select((c, i) => (c, i)).ToList();
+          foreach (var (c, i) in itemWithIndex)
+          {
+            if (c == '0')
+            {
+              Char banChar = inputWord[i];
+              candidateWords
+                = (from word in candidateWords
+                   where !word.Contains(banChar)
+                   select word).ToList();
+              suggestionWords
+                = (from word in suggestionWords
+                   where !word.Contains(banChar)
+                   select word).ToList();
+            }
+            else if (c == '1')
+            {
+              Char allowChar = inputWord[i];
+              candidateWords
+                = (from word in candidateWords
+                   where word.Contains(allowChar)
+                   select word).ToList();
+              candidateWords
+                = (from word in candidateWords
+                   where word[i] != allowChar
+                   select word).ToList();
+              suggestionWords
+                = (from word in suggestionWords
+                   where !word.Contains(allowChar)
+                   select word).ToList();
+            }
+            else if (c == '2')
+            {
+              Char allowChar = inputWord[i];
+              candidateWords
+                = (from word in candidateWords
+                   where word[i] == allowChar
+                   select word).ToList();
+              suggestionWords
+                = (from word in suggestionWords
+                   where !word.Contains(allowChar)
+                   select word).ToList();
+            }
+          }
+        }
+        if (atLeastOneProcess)
+        {
+          candidateWords = SortBasedOnDupPoint(candidateWords);
+          candidates = String.Join("\n", candidateWords);
+
+          suggestionWords = SortBasedOnDupPoint(suggestionWords);
+          suggestions = String.Join("\n", suggestionWords);
+        }
+      } else
+      {
+        wordsFull = wordsFull.OrderBy((x) => random.Next()).ToList();
+        List<String> filteredWords = wordsFull.ToList();
+        filteredWords = SortBasedOnDupPoint(filteredWords);
+        candidates = suggestions = String.Join("\n", filteredWords);
+      }
+      StateHasChanged();
+    }
+    catch (Exception e)
+    {
+      Console.WriteLine(e.Message);
+    }
+  }
+
+  private static List<String> SortBasedOnDupPoint(List<String> wordsList)
+  {
+    List<(String word, Int32 dupPoint)> points = new();
+    foreach (String word in wordsList)
+    {
+      List<Int32> dupCount = new();
+      foreach (Char c in word)
+        dupCount.Add(word.Count((x) => x == c));
+      points.Add((word, dupCount.Max()));
+    }
+    points.Sort((x, y) => (x.dupPoint.CompareTo(y.dupPoint)));
+    return points.Select(wordPoint => wordPoint.word).ToList();
+  }
+}

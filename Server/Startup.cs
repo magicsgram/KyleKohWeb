@@ -56,6 +56,7 @@ namespace KyleKoh.Server
         endpoints.MapRazorPages();
         endpoints.MapControllers();
         endpoints.MapHub<Connect6Hub>("/Connect6Hub");
+        endpoints.MapHub<WordleHub>("/WordleHub");
         endpoints.MapFallbackToFile("index.html");
       });
     }
