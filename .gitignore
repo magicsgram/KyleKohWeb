@@ -4,6 +4,7 @@ Server/bin/
 Server/obj/
 Shared/bin/
 Shared/obj/
+words.txt
 gamedb.db
 gamedb-log.db
 server-url.txt
