@@ -69,6 +69,7 @@
       wordsFull.Add(word.ToLower());
     await hubConnection.DisposeAsync();
     wordsFull = wordsFull.OrderBy((x) => random.Next()).ToList();
+    wordsFull = SortBasedOnDupPoint(wordsFull);
     candidates = suggestions = String.Join("\n", wordsFull);
     StateHasChanged();
   }
