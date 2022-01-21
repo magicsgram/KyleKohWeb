@@ -102,8 +102,8 @@
   private String canvasStyleString = "";
   private String serverUrl = "";
   private System.Timers.Timer resizeTimer;
-  private const Double RegularResizeInterval = 500d;
-  private const Double RapidResizeInterval = 100d;
+  private const Double RegularResizeInterval = 1000d;
+  private const Double RapidResizeInterval = 50d;
 
   [Parameter]
   public String GameId { get; set; }
@@ -113,12 +113,18 @@
     SetLanguages();
     SetVisualThemes();
     SetStoneSound();
-    //BrowserResizeService.OnResize += BrowserHasResized;
-    //await jsRuntime.InvokeVoidAsync("browserResize.registerResizeCallback");
+    await SetResizeHandlers();
+  }
+
+  protected async Task SetResizeHandlers()
+  {
     resizeTimer = new System.Timers.Timer(RegularResizeInterval);
     resizeTimer.AutoReset = true;
     resizeTimer.Enabled = true;
-    resizeTimer.Elapsed += async (sender, o) => await BrowserHasResized();
+    resizeTimer.Elapsed += async (sender, o) => await BrowserResizeHandler();
+
+    BrowserResizeService.OnResize += BrowserHasResized;
+    await jsRuntime.InvokeVoidAsync("browserResize.registerResizeCallback");
   }
 
   protected override async Task OnParametersSetAsync()
@@ -231,6 +237,14 @@
 
   private async Task BrowserHasResized()
   {
+    await Task.Run(() =>
+    {
+      resizeTimer.Interval = RapidResizeInterval;
+    });
+  }
+
+  private async Task BrowserResizeHandler()
+  {
     try
     {
       Single newZoomFactor = 1.0f;
@@ -240,9 +254,7 @@
         newZoomFactor = newWidth / totalBoardWidth;
 
       if (newZoomFactor == zoomFactor)
-      {
         resizeTimer.Interval = RegularResizeInterval;
-      }
       else
       {
         resizeTimer.Interval = RapidResizeInterval;
@@ -472,7 +484,8 @@
   public void Dispose()
   {
     _ = hubConnection.DisposeAsync();
-    //BrowserResizeService.OnResize -= BrowserHasResized;
+    BrowserResizeService.OnResize -= BrowserHasResized;
+    resizeTimer.Stop();
   }
 
   private void SetLanguages()

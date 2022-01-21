@@ -32,7 +32,7 @@
       .Build();
 
     // Force load page. There's a problem w/ loading soundfiles when use regular path novigation.
-    hubConnection.On<String>("NewGameIdReceived", (gameId) => NavigationManager.NavigateTo($"connect6/game/{gameId}?lang={languageCode}", true));
+    hubConnection.On<String>("NewGameIdReceived", (gameId) => NavigationManager.NavigateTo($"connect6/game/{gameId}?lang={languageCode}"));
     await hubConnection.StartAsync();
   }
 
