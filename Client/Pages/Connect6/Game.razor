@@ -11,7 +11,7 @@
 @implements IDisposable
 @inject IJSRuntime jsRuntime
 
-<div style="text-align: center;">
+<div style="text-align: center; backdrop-filter: brightness(50%);">
   <h2>@stringResource[languageCode]["GameTitle"]</h2>
   @if (boardLineStrings.Count > 0)  {
     <div>@stringResource[languageCode]["CopyLinkInstruction"]</div>
@@ -24,7 +24,9 @@
     @if (winnerExist)
     {
       <div>
-        <button @onclick="NewGame" disabled="@(!IsConnected || lastPlayX == -1)">@stringResource[languageCode]["NewGameButton"]</button>
+        <button style="background-color: black; color: dimgrey;" @onclick="NewGame" disabled="@(!IsConnected || lastPlayX == -1)">
+          @stringResource[languageCode]["NewGameButton"]
+        </button>
       </div>
       <br />
     }
@@ -41,11 +43,11 @@
     </div>
     <br />
     <p>
-      <button @onclick="Undo" disabled="@(!IsConnected || lastPlayX == -1)">@stringResource[languageCode]["UndoButton"]</button>
-      <button @onclick="NewGame" disabled="@(!IsConnected || lastPlayX == -1)">@stringResource[languageCode]["NewGameButton"]</button>
+      <button style="background-color: black; color: dimgrey;" @onclick="Undo" disabled="@(!IsConnected || lastPlayX == -1)">@stringResource[languageCode]["UndoButton"]</button>
+      <button style="background-color: black; color: dimgrey;" @onclick="NewGame" disabled="@(!IsConnected || lastPlayX == -1)">@stringResource[languageCode]["NewGameButton"]</button>
     </p>
     <p>
-      <select class="form-control selectpicker" @onchange="OnThemeChanged">
+      <select class="form-control selectpicker" @onchange="OnThemeChanged" style="background: black;">
         <option value="go">Go Board</option>
         <option value="reversi">Reversi Board</option>
       </select>
@@ -197,7 +199,8 @@
     }
     else
     {
-      await DrawDiffBoardAndSetAsync(CurrentStateToStrings());
+      //await DrawDiffBoardAndSetAsync(CurrentStateToStrings());
+      await DrawWholeCanvasAsync();
     }
   }
 
@@ -302,6 +305,7 @@
       newBoardLineStringsForRender[boardY] = sb.ToString();
     }
     await DrawDiffBoardAndSetAsync(newBoardLineStringsForRender);
+    //await DrawWholeCanvasAsync();
     lastMouseMoveBoardX = boardX;
     lastMouseMoveBoardY = boardY;
   }
@@ -348,7 +352,9 @@
           = (cell.X == lastPlayX && cell.Y == lastPlayY) || (cell.X == lastLastPlayX && cell.Y == lastLastPlayY) ?
             $"boardimage_{currentVisualTheme}_{Char.ToUpper(newBoardLineStringsForRender[cell.Y][cell.X])}"
             : $"boardimage_{currentVisualTheme}_{newBoardLineStringsForRender[cell.Y][cell.X]}";
+        await context.FilterAsync("brightness(70%)");
         await context.DrawImageAsync(boardImageName, cell.X * 35, cell.Y * 35);
+        
       }
     }
     boardLineStringsForRender = newBoardLineStringsForRender;

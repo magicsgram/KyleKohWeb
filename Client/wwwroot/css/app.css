@@ -15,9 +15,9 @@ a, .btn-link {
 }
 
 app {
-    position: relative;
-    display: flex;
-    flex-direction: column;
+  position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .top-row {
